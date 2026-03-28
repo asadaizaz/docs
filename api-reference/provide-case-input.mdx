@@ -1,0 +1,78 @@
+---
+title: "Provide Case Input"
+description: "POST /cases/{id}/input"
+---
+
+## Endpoint
+
+```http
+POST /cases/{id}/input
+```
+
+## Auth
+
+```http
+x-api-key: your-api-key
+```
+
+## Purpose
+
+Accepts human input for a case that is paused in `INPUT_NEEDED`.
+
+## Path parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The target case ID. |
+
+## Request body
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `inputRequestId` | string | Yes | Must match the active request from the webhook. |
+| `providedContext` | string | Yes | The answer or context Offload should use next. |
+
+## Example request
+
+```json
+{
+  "inputRequestId": "input-request-123",
+  "providedContext": "Yes, next Monday is acceptable. Ask them to send the signed form by 5 PM PT."
+}
+```
+
+## Example response
+
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "case_123",
+    "inputRequestId": "input-request-123",
+    "accepted": true
+  }
+}
+```
+
+`202 Accepted` means the input was queued successfully. The case continues asynchronously after that.
+
+## Conflict cases
+
+This endpoint returns `409` when:
+
+- the case is not in `INPUT_NEEDED`
+- the input request is no longer `PENDING`
+- the provided `inputRequestId` no longer matches the active request
+
+## Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `400` | `INVALID_REQUEST` | Missing case ID or invalid body |
+| `401` | `UNAUTHORIZED` | Missing or invalid API key |
+| `403` | `FORBIDDEN` | The case belongs to another client |
+| `404` | `CASE_NOT_FOUND` | No case exists for that ID |
+| `409` | `CASE_NOT_WAITING_FOR_INPUT` | The case is not paused for input |
+| `409` | `INPUT_REQUEST_NOT_PENDING` | The active request is already resolved |
+| `409` | `INPUT_REQUEST_MISMATCH` | The input request ID is stale or incorrect |
+| `500` | `INTERNAL_ERROR` | The input could not be accepted |

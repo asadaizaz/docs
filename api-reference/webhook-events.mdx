@@ -1,0 +1,112 @@
+---
+title: "Webhook Events"
+description: "Outbound events delivered to your clientWebhookUrl."
+---
+
+## Delivery contract
+
+When `clientWebhookUrl` is set, Offload sends JSON POST requests to that URL for terminal or paused states.
+
+Headers:
+
+```http
+content-type: application/json
+```
+
+## Common envelope
+
+```json
+{
+  "event_id": "evt_case_123_case_completed_1774131900000",
+  "event_type": "case.completed",
+  "timestamp": 1774131900000,
+  "data": {}
+}
+```
+
+## Event types
+
+### `case.completed`
+
+Sent when a case reaches `COMPLETED`.
+
+```json
+{
+  "event_type": "case.completed",
+  "data": {
+    "caseId": "case_123",
+    "clientReferenceId": "vendor_2048",
+    "status": "COMPLETED",
+    "channel": "EMAIL",
+    "attemptCount": 2,
+    "resultStatus": "goal_achieved",
+    "result": {
+      "signedW9Received": true,
+      "taxId": "12-3456789",
+      "documentUrl": "https://files.example.com/w9.pdf"
+    }
+  }
+}
+```
+
+### `case.failed`
+
+Sent when the workflow cannot complete.
+
+```json
+{
+  "event_type": "case.failed",
+  "data": {
+    "caseId": "case_123",
+    "status": "FAILED",
+    "channel": "EMAIL",
+    "attemptCount": 3,
+    "resultStatus": "max_retries",
+    "failureReason": "Maximum follow-up attempts reached."
+  }
+}
+```
+
+### `case.input_needed`
+
+Sent when Offload needs a decision from your app before continuing.
+
+```json
+{
+  "event_type": "case.input_needed",
+  "data": {
+    "caseId": "case_123",
+    "status": "INPUT_NEEDED",
+    "channel": "EMAIL",
+    "attemptCount": 1,
+    "inputRequest": "The counterparty asked whether a Tuesday deadline is acceptable.",
+    "inputRequestId": "input-request-123",
+    "inputRequestStatus": "PENDING",
+    "inputRequestedAt": 1774131900000
+  }
+}
+```
+
+## Fields in `data`
+
+| Field | Present when |
+| --- | --- |
+| `caseId` | Always |
+| `clientReferenceId` | When you provided one at creation time |
+| `status` | Always |
+| `channel` | Always |
+| `attemptCount` | Always |
+| `result` | Usually on `case.completed` |
+| `resultStatus` | On terminal states and some workflow outcomes |
+| `failureReason` | On `case.failed` |
+| `inputRequest` | On `case.input_needed` |
+| `inputRequestId` | On `case.input_needed` |
+| `inputRequestStatus` | On `case.input_needed` |
+| `inputRequestedAt` | On `case.input_needed` |
+| `metadata` | When metadata was attached to the case |
+
+## Handling advice
+
+- Deduplicate by `event_id`.
+- Expect retries from the platform layer and keep handlers idempotent.
+- Persist `case.input_needed` payloads so you retain the active `inputRequestId`.

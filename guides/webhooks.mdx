@@ -1,0 +1,77 @@
+---
+title: "Webhooks"
+description: "How Offload delivers state changes back to your application."
+---
+
+If you provide `clientWebhookUrl` when creating a case, Offload sends JSON POST requests to your system as the case changes state.
+
+## Event types
+
+| Event | Meaning |
+| --- | --- |
+| `case.completed` | The goal was achieved and a structured result is available. |
+| `case.failed` | The workflow stopped without success. |
+| `case.input_needed` | Offload is blocked on a human answer from your app. |
+
+## Payload shape
+
+Every webhook includes:
+
+```json
+{
+  "event_id": "evt_case_123_case_completed_1774131900000",
+  "event_type": "case.completed",
+  "timestamp": 1774131900000,
+  "data": {}
+}
+```
+
+`data` contains the case-specific fields such as:
+
+- `caseId`
+- `clientReferenceId`
+- `status`
+- `attemptCount`
+- `result`
+- `resultStatus`
+- `failureReason`
+- `inputRequest`
+- `inputRequestId`
+
+## Delivery guidance
+
+Current implementation notes from this codebase:
+
+- webhooks are sent as JSON with `content-type: application/json`
+- Offload expects a successful HTTP response from your endpoint
+- there is currently no webhook signature header in the implementation
+
+Because of that, use HTTPS and an endpoint path that is not publicly advertised.
+
+## Minimal handler
+
+```ts
+export async function handleOffloadWebhook(req: Request) {
+  const event = await req.json();
+
+  switch (event.event_type) {
+    case "case.completed":
+      // consume event.data.result
+      break;
+    case "case.failed":
+      // alert or retry at the product layer
+      break;
+    case "case.input_needed":
+      // store inputRequestId and prompt an operator
+      break;
+  }
+
+  return new Response(null, { status: 204 });
+}
+```
+
+## Best practices
+
+- Make handlers idempotent using `event_id`.
+- Persist the full payload for audit and debugging.
+- Return a fast `2xx` response and do heavier work asynchronously.

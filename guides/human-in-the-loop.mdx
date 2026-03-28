@@ -1,0 +1,72 @@
+---
+title: "Human In The Loop"
+description: "How to resume a case when Offload pauses for input."
+---
+
+Offload pauses a case when it cannot proceed safely without your answer.
+
+That state appears as:
+
+- case status `INPUT_NEEDED`
+- webhook event `case.input_needed`
+
+## What you receive
+
+When a case pauses, Offload sends a webhook containing:
+
+- `inputRequest`
+- `inputRequestId`
+- `inputRequestStatus`
+- `inputRequestedAt`
+
+Example:
+
+```json
+{
+  "event_type": "case.input_needed",
+  "data": {
+    "caseId": "case_123",
+    "status": "INPUT_NEEDED",
+    "inputRequest": "The vendor asked if you can accept delivery on Tuesday instead of Monday.",
+    "inputRequestId": "input-request-123",
+    "inputRequestStatus": "PENDING"
+  }
+}
+```
+
+## How to resume
+
+Call `POST /cases/{id}/input` with the exact `inputRequestId` from the webhook and the context you want Offload to use.
+
+```bash
+curl -X POST "$OFFLOAD_BASE_URL/cases/case_123/input" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $OFFLOAD_API_KEY" \
+  -d '{
+    "inputRequestId": "input-request-123",
+    "providedContext": "Tuesday works. Confirm that they should send the document before 5 PM PT."
+  }'
+```
+
+## Important constraints
+
+- The case must currently be in `INPUT_NEEDED`.
+- The request must still be `PENDING`.
+- The `inputRequestId` must match the active request exactly.
+
+If any of those conditions fail, the API returns `409`.
+
+## Recommended app behavior
+
+- Persist `inputRequestId` from the webhook.
+- Show `inputRequest` to the operator or business workflow that can answer it.
+- Keep the answer concise and decision-oriented.
+- Treat `202 Accepted` as asynchronous acceptance, not immediate completion.
+
+## What happens next
+
+After your input is accepted:
+
+- Offload records the answer in the case context
+- the workflow is re-evaluated
+- the case may return to `RUNNING`, `COMPLETED`, `FAILED`, or request more input later

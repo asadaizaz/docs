@@ -1,0 +1,79 @@
+---
+title: "Cases"
+description: "A case is the unit of work Offload manages on your behalf."
+---
+
+A case represents one asynchronous coordination task with one counterparty.
+
+Examples:
+
+- collect a signed form
+- confirm invoice details
+- chase a missing document
+- ask follow-up questions until a result can be returned as JSON
+
+## The parts of a case
+
+### `goal`
+
+The end state Offload is trying to reach.
+
+- `objective` is the plain-language outcome you want.
+- `knowledge` is the extra business context Offload can use while writing and evaluating messages.
+
+### `counterparty`
+
+The human or team Offload contacts.
+
+- `address` is usually an email address
+- `name` is used in the outreach
+- `company`, `timezone`, and `customData` improve message quality and follow-up timing
+
+### `senderPersona`
+
+How Offload should represent your side of the conversation.
+
+Use this to set the sender name, role, company, tone, and any persistent instructions.
+
+### `resultSchema`
+
+Optional JSON Schema that defines the structured payload you want back when the case is successful.
+
+If you care about exact downstream automation, always provide one.
+
+### `constraints`
+
+Hard rules Offload should not violate.
+
+Examples:
+
+- `Email only`
+- `Do not negotiate price`
+- `Do not promise a refund`
+
+## Design advice
+
+Good cases are specific, bounded, and observable.
+
+Prefer:
+
+- "Collect a signed W-9 from the vendor"
+- "Confirm whether the appointment on April 3 at 2 PM works"
+- "Get the corrected invoice for March landscaping services"
+
+Avoid:
+
+- "Handle vendor onboarding"
+- "Figure out what to do"
+- "Manage all communication with this customer forever"
+
+## Defaults
+
+If you omit them:
+
+- `maxAttempts` defaults to `3`
+- `followUpDelayHours` defaults to `72`
+
+## Current channel support
+
+The API schema includes `EMAIL` and `SMS`, but the current workflow in this codebase is email-first. Use `EMAIL` for production integrations unless your team has enabled an additional channel separately.

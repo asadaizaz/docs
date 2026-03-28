@@ -1,80 +1,190 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Create your first Offload case and handle the resulting webhook."
 ---
 
-## Get started in three steps
+This guide walks through the shortest useful integration:
 
-Get your documentation site running locally and make your first customization.
+1. create a case
+2. receive webhook events
+3. resume the case if human input is required
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- an active API key
+- a public HTTPS endpoint that can receive POST requests from Offload
+- a place to store `caseId` and webhook event data in your app
 
-### Step 2: Deploy your changes
+## 1. Set your base URL and API key
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+```bash
+export OFFLOAD_BASE_URL="https://2dr03s75sl.execute-api.us-west-2.amazonaws.com"
+export OFFLOAD_API_KEY="your-api-key"
+```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Warning>
+  Use the `x-api-key` header on `POST /cases`, `GET /cases/{id}`, and `POST /cases/{id}/input`.
+</Warning>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+## 2. Create a case
 
-### Step 3: Go live
+This example asks Offload to collect a signed W-9 and return structured data when the task is complete.
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```bash
+curl -X POST "$OFFLOAD_BASE_URL/cases" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $OFFLOAD_API_KEY" \
+  -d '{
+    "clientReferenceId": "vendor_2048",
+    "channel": "EMAIL",
+    "maxAttempts": 3,
+    "followUpDelayHours": 72,
+    "goal": {
+      "objective": "Collect a signed W-9 from the vendor",
+      "knowledge": {
+        "vendorName": "Northstar Supplies",
+        "requestReason": "AP onboarding",
+        "dueDate": "2026-04-04"
+      }
+    },
+    "counterparty": {
+      "address": "ap@northstar.example",
+      "name": "Maya Chen",
+      "company": "Northstar Supplies",
+      "timezone": "America/Los_Angeles"
+    },
+    "senderPersona": {
+      "name": "Avery",
+      "role": "Accounts Payable",
+      "company": "Offload Customer Inc.",
+      "tone": "friendly, concise"
+    },
+    "constraints": [
+      "Email only",
+      "Do not mention legal action"
+    ],
+    "resultSchema": {
+      "type": "object",
+      "properties": {
+        "signedW9Received": { "type": "boolean" },
+        "taxId": { "type": "string" },
+        "documentUrl": { "type": "string" }
+      },
+      "required": ["signedW9Received"]
+    },
+    "clientWebhookUrl": "https://your-app.example/webhooks/offload"
+  }'
+```
+
+Successful response:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "case_123"
+  }
+}
+```
+
+Store `caseId` and map it to your own object using `clientReferenceId` if you have one.
+
+## 3. Receive webhook events
+
+Configure your webhook endpoint to accept JSON POST requests. Offload currently sends:
+
+- `case.completed`
+- `case.failed`
+- `case.input_needed`
+
+Example `case.completed` payload:
+
+```json
+{
+  "event_id": "evt_case_123_case_completed_1774131900000",
+  "event_type": "case.completed",
+  "timestamp": 1774131900000,
+  "data": {
+    "caseId": "case_123",
+    "clientReferenceId": "vendor_2048",
+    "status": "COMPLETED",
+    "channel": "EMAIL",
+    "attemptCount": 2,
+    "resultStatus": "goal_achieved",
+    "result": {
+      "signedW9Received": true,
+      "taxId": "12-3456789",
+      "documentUrl": "https://files.example.com/w9.pdf"
+    }
+  }
+}
+```
+
+## 4. Handle input-needed cases
+
+Sometimes Offload cannot continue without a business decision or missing context. In that case, you receive `case.input_needed`.
+
+Example:
+
+```json
+{
+  "event_id": "evt_case_123_case_input_needed_1774131900000",
+  "event_type": "case.input_needed",
+  "timestamp": 1774131900000,
+  "data": {
+    "caseId": "case_123",
+    "clientReferenceId": "vendor_2048",
+    "status": "INPUT_NEEDED",
+    "channel": "EMAIL",
+    "attemptCount": 1,
+    "inputRequest": "The vendor asked whether they can send the W-9 next Monday. Should I accept that timeline?",
+    "inputRequestId": "input-request-123",
+    "inputRequestStatus": "PENDING",
+    "inputRequestedAt": 1774131900000
+  }
+}
+```
+
+Resume the case:
+
+```bash
+curl -X POST "$OFFLOAD_BASE_URL/cases/case_123/input" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $OFFLOAD_API_KEY" \
+  -d '{
+    "inputRequestId": "input-request-123",
+    "providedContext": "Yes, next Monday is acceptable."
+  }'
+```
+
+Accepted response:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "case_123",
+    "inputRequestId": "input-request-123",
+    "accepted": true
+  }
+}
+```
+
+## 5. Poll if needed
+
+If you want a point-in-time status check, call `GET /cases/{id}`.
+
+```bash
+curl -H "x-api-key: $OFFLOAD_API_KEY" \
+  "$OFFLOAD_BASE_URL/cases/case_123"
+```
+
+<Info>
+  `GET /cases/{id}` returns the current case state and result data, but the active `inputRequest` details are currently only included in webhook events.
+</Info>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+- Read [Case lifecycle](/concepts/lifecycle) to understand status transitions.
+- Read [Result schema](/guides/result-schema) to improve the shape of returned JSON.
+- Read [Webhook events](/api-reference/webhook-events) for the full payload contract.

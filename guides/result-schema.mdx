@@ -1,0 +1,87 @@
+---
+title: "Result Schema"
+description: "Use JSON Schema to control the structure of completed case results."
+---
+
+`resultSchema` tells Offload what shape of JSON you want back when the case is successful.
+
+Without a schema, Offload can still complete a case, but your downstream system will have less structure to rely on.
+
+## Why it matters
+
+Use `resultSchema` when you want to:
+
+- trigger product workflows from typed fields
+- reduce manual parsing
+- keep webhook payloads stable across cases
+
+## Example
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "signedW9Received": { "type": "boolean" },
+    "taxId": { "type": "string" },
+    "documentUrl": { "type": "string" }
+  },
+  "required": ["signedW9Received"]
+}
+```
+
+## Good schema patterns
+
+- Prefer flat, explicit fields over vague blobs.
+- Use booleans for yes or no outcomes.
+- Use strings for dates, URLs, and IDs unless your system requires another type.
+- Keep the schema focused on what your app needs after the case completes.
+
+## Example patterns
+
+### Document collection
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "received": { "type": "boolean" },
+    "receivedAt": { "type": "string" },
+    "documentUrl": { "type": "string" }
+  },
+  "required": ["received"]
+}
+```
+
+### Scheduling
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "confirmed": { "type": "boolean" },
+    "scheduledTime": { "type": "string" },
+    "meetingLink": { "type": "string" }
+  },
+  "required": ["confirmed"]
+}
+```
+
+### Invoice follow-up
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "invoiceReceived": { "type": "boolean" },
+    "invoiceNumber": { "type": "string" },
+    "amount": { "type": "string" }
+  },
+  "required": ["invoiceReceived"]
+}
+```
+
+## Practical guidance
+
+- Do not encode instructions in the schema. Put those in `goal`, `knowledge`, and `constraints`.
+- Do not require fields that may be impossible to confirm from the conversation.
+- If your workflow can end in multiple valid shapes, use nullable or optional properties instead of over-constraining the result.

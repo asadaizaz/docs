@@ -1,33 +1,31 @@
-> **First-time setup**: Customize this file for your project. Prompt the user to customize this file for their project.
-> For Mintlify product knowledge (components, configuration, writing standards),
-> install the Mintlify skill: `npx skills add https://mintlify.com/docs`
-
 # Documentation project instructions
 
 ## About this project
 
-- This is a documentation site built on [Mintlify](https://mintlify.com)
-- Pages are MDX files with YAML frontmatter
-- Configuration lives in `docs.json`
-- Run `mint dev` to preview locally
-- Run `mint broken-links` to check links
+- This is the Mintlify documentation site for Offload / CasesAI.
+- Pages are MDX files with YAML frontmatter.
+- Site configuration lives in `docs.json`.
+- Run `mint dev` to preview locally.
+- Run `mint broken-links` before shipping larger edits.
 
 ## Terminology
 
-{/* Add product-specific terms and preferred usage */}
-{/* Example: Use "workspace" not "project", "member" not "user" */}
+- Prefer `Offload` when referring to the product.
+- Use `case` for the async unit of work.
+- Use `counterparty` for the person or team Offload contacts.
+- Use `result schema` for the JSON Schema requested at case creation.
+- Use `human in the loop` for pause-and-resume workflows that require customer input.
 
 ## Style preferences
 
-{/* Add any project-specific style rules below */}
-
-- Use active voice and second person ("you")
-- Keep sentences concise — one idea per sentence
-- Use sentence case for headings
-- Bold for UI elements: Click **Settings**
-- Code formatting for file names, commands, paths, and code references
+- Write for developers integrating the API.
+- Use active voice and second person.
+- Keep examples concrete and operational.
+- Be explicit about current limitations when the codebase has them.
+- Prefer short sections, tables, and example payloads over marketing copy.
 
 ## Content boundaries
 
-{/* Define what should and shouldn't be documented */}
-{/* Example: Don't document internal admin features */}
+- Document public API behavior, webhook payloads, and integration patterns.
+- Do not document speculative features as if they are already available.
+- If a field exists in code but is not fully surfaced in the public API, call that out clearly.

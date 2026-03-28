@@ -1,0 +1,92 @@
+---
+title: "Create Case"
+description: "POST /cases"
+---
+
+## Endpoint
+
+```http
+POST /cases
+```
+
+## Auth
+
+```http
+x-api-key: your-api-key
+```
+
+## Purpose
+
+Creates a new asynchronous coordination case and starts the workflow.
+
+## Request body
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `channel` | `EMAIL \| SMS` | Yes | Use `EMAIL` for current production workflows. |
+| `goal` | object | Yes | Must include `objective`. |
+| `counterparty` | object | Yes | Must include `address` and `name`. |
+| `senderPersona` | object | Yes | Must include `name`. |
+| `clientReferenceId` | string | No | Your stable ID for mapping the case back to your system. |
+| `constraints` | string[] | No | Hard rules for the workflow. |
+| `maxAttempts` | integer | No | Defaults to `3`. |
+| `followUpDelayHours` | integer | No | Defaults to `72`. |
+| `resultSchema` | object | No | JSON Schema for the final `result`. |
+| `clientWebhookUrl` | string | No | Recommended for event-driven integrations. |
+| `metadata` | object | No | Opaque metadata echoed back in webhooks. |
+
+## Example request
+
+```json
+{
+  "clientReferenceId": "property_4421_invoice_march",
+  "channel": "EMAIL",
+  "maxAttempts": 2,
+  "followUpDelayHours": 24,
+  "goal": {
+    "objective": "Get the vendor to send the updated invoice for March landscaping services.",
+    "knowledge": {
+      "invoiceMonth": "March 2026",
+      "vendorName": "GreenLeaf Landscaping",
+      "propertyName": "Maple Grove Apartments",
+      "expectedAmount": "$1,240.00"
+    }
+  },
+  "counterparty": {
+    "address": "ap@greenleaf.example",
+    "name": "Jordan Lee",
+    "company": "GreenLeaf Landscaping",
+    "timezone": "America/Los_Angeles"
+  },
+  "senderPersona": {
+    "name": "Melissa",
+    "role": "Accounts Payable Coordinator",
+    "company": "Northstar Property Group",
+    "tone": "professional, clear, polite"
+  },
+  "clientWebhookUrl": "https://your-app.example/webhooks/offload",
+  "metadata": {
+    "portfolio": "west-coast",
+    "propertyId": "property-4421"
+  }
+}
+```
+
+## Example response
+
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "case_123"
+  }
+}
+```
+
+## Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `400` | `INVALID_REQUEST` | Malformed JSON or failed validation |
+| `401` | `UNAUTHORIZED` | Missing or invalid API key |
+| `500` | `INTERNAL_ERROR` | The case could not be created |

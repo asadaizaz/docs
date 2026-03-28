@@ -1,94 +1,63 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "OpenAPI Plant Store",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
-    "license": {
-      "name": "MIT"
-    },
+    "title": "Offload API",
+    "description": "API for asynchronous human coordination over email.",
     "version": "1.0.0"
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
+      "url": "https://2dr03s75sl.execute-api.us-west-2.amazonaws.com"
     }
   ],
   "security": [
     {
-      "bearerAuth": []
+      "ApiKeyAuth": []
     }
   ],
   "paths": {
-    "/plants": {
-      "get": {
-        "description": "Returns all plants from the system that the user has access to",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "The maximum number of results to return",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
+    "/cases": {
       "post": {
-        "description": "Creates a new plant in the store",
+        "summary": "Create case",
+        "description": "Creates a new asynchronous coordination case and enqueues the workflow.",
         "requestBody": {
-          "description": "Plant to add to the store",
+          "description": "Case creation payload",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewPlant"
+                "$ref": "#/components/schemas/CreateCaseRequest"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "plant response",
+          "201": {
+            "description": "Case created",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Plant"
+                  "$ref": "#/components/schemas/CreateCaseResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "unexpected error",
+            "description": "Invalid request",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -96,32 +65,158 @@
         }
       }
     },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
+    "/cases/{id}": {
+      "get": {
+        "summary": "Get case",
+        "description": "Returns the current status and public state for a case owned by the authenticated client.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "ID of plant to delete",
+            "description": "Case ID",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             }
           }
         ],
         "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
+          "200": {
+            "description": "Case response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/GetCaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{id}/input": {
+      "post": {
+        "summary": "Provide case input",
+        "description": "Resumes a case that is waiting for human input.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Case ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Human input payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvideCaseInputRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Input accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvideCaseInputResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Case cannot accept input in its current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -131,22 +226,22 @@
     }
   },
   "webhooks": {
-    "/plant/webhook": {
+    "caseEvent": {
       "post": {
-        "description": "Information about a new plant added to the store",
+        "description": "Webhook sent to the clientWebhookUrl configured on the case.",
         "requestBody": {
-          "description": "Plant added to the store",
+          "description": "Webhook event payload",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewPlant"
+                "$ref": "#/components/schemas/ClientWebhookEvent"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Return a 200 status to indicate that the data was received successfully"
+            "description": "Return any 2xx status to indicate successful receipt"
           }
         }
       }
@@ -154,63 +249,371 @@
   },
   "components": {
     "schemas": {
-      "Plant": {
-        "required": [
-          "name"
-        ],
+      "Counterparty": {
         "type": "object",
+        "required": ["address", "name"],
         "properties": {
-          "name": {
-            "description": "The name of the plant",
+          "address": {
+            "description": "Email address or phone number to contact.",
             "type": "string"
           },
-          "tag": {
-            "description": "Tag to specify the type",
+          "name": {
+            "description": "Human-friendly name of the counterparty.",
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "customData": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SenderPersona": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "tone": {
+            "type": "string"
+          },
+          "customInstructions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CaseGoal": {
+        "type": "object",
+        "required": ["objective"],
+        "properties": {
+          "objective": {
+            "type": "string"
+          },
+          "knowledge": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          }
+        }
+      },
+      "CreateCaseRequest": {
+        "type": "object",
+        "required": ["channel", "goal", "counterparty", "senderPersona"],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": ["EMAIL", "SMS"]
+          },
+          "clientReferenceId": {
+            "type": "string"
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "followUpDelayHours": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "goal": {
+            "$ref": "#/components/schemas/CaseGoal"
+          },
+          "counterparty": {
+            "$ref": "#/components/schemas/Counterparty"
+          },
+          "senderPersona": {
+            "$ref": "#/components/schemas/SenderPersona"
+          },
+          "resultSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "clientWebhookUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "CreateCaseResponseData": {
+        "type": "object",
+        "required": ["caseId"],
+        "properties": {
+          "caseId": {
             "type": "string"
           }
         }
       },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
+      "CreateCaseResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
           },
-          {
-            "required": [
-              "id"
-            ],
+          "data": {
+            "$ref": "#/components/schemas/CreateCaseResponseData"
+          }
+        }
+      },
+      "GetCaseResponseData": {
+        "type": "object",
+        "required": [
+          "caseId",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "attemptCount",
+          "maxAttempts",
+          "channel",
+          "counterparty",
+          "goal",
+          "senderPersona"
+        ],
+        "properties": {
+          "caseId": {
+            "type": "string"
+          },
+          "clientReferenceId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["CREATED", "RUNNING", "COMPLETED", "FAILED", "INPUT_NEEDED"]
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          },
+          "nextActionAt": {
+            "type": ["integer", "null"]
+          },
+          "attemptCount": {
+            "type": "integer"
+          },
+          "maxAttempts": {
+            "type": "integer"
+          },
+          "channel": {
+            "type": "string",
+            "enum": ["EMAIL", "SMS"]
+          },
+          "counterparty": {
+            "$ref": "#/components/schemas/Counterparty"
+          },
+          "resultStatus": {
+            "type": "string"
+          },
+          "result": {
             "type": "object",
-            "properties": {
-              "id": {
-                "description": "Identification number of the plant",
-                "type": "integer",
-                "format": "int64"
-              }
+            "additionalProperties": true
+          },
+          "goal": {
+            "$ref": "#/components/schemas/CaseGoal"
+          },
+          "resultSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "senderPersona": {
+            "$ref": "#/components/schemas/SenderPersona"
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
-        ]
+        }
       },
-      "Error": {
-        "required": [
-          "error",
-          "message"
-        ],
+      "GetCaseResponse": {
         "type": "object",
+        "required": ["ok", "data"],
         "properties": {
-          "error": {
-            "type": "integer",
-            "format": "int32"
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GetCaseResponseData"
+          }
+        }
+      },
+      "ProvideCaseInputRequest": {
+        "type": "object",
+        "required": ["inputRequestId", "providedContext"],
+        "properties": {
+          "inputRequestId": {
+            "type": "string"
+          },
+          "providedContext": {
+            "type": "string"
+          }
+        }
+      },
+      "ProvideCaseInputResponseData": {
+        "type": "object",
+        "required": ["caseId", "inputRequestId", "accepted"],
+        "properties": {
+          "caseId": {
+            "type": "string"
+          },
+          "inputRequestId": {
+            "type": "string"
+          },
+          "accepted": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "ProvideCaseInputResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProvideCaseInputResponseData"
+          }
+        }
+      },
+      "ClientWebhookEventData": {
+        "type": "object",
+        "required": ["caseId", "status", "channel", "attemptCount"],
+        "properties": {
+          "caseId": {
+            "type": "string"
+          },
+          "clientReferenceId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["CREATED", "RUNNING", "COMPLETED", "FAILED", "INPUT_NEEDED"]
+          },
+          "channel": {
+            "type": "string",
+            "enum": ["EMAIL", "SMS"]
+          },
+          "attemptCount": {
+            "type": "integer"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "resultStatus": {
+            "type": "string"
+          },
+          "failureReason": {
+            "type": ["string", "null"]
+          },
+          "inputRequest": {
+            "type": ["string", "null"]
+          },
+          "inputRequestId": {
+            "type": ["string", "null"]
+          },
+          "inputRequestStatus": {
+            "type": ["string", "null"]
+          },
+          "inputRequestedAt": {
+            "type": ["integer", "null"]
+          }
+        }
+      },
+      "ClientWebhookEvent": {
+        "type": "object",
+        "required": ["event_id", "event_type", "timestamp", "data"],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": ["case.completed", "case.failed", "case.input_needed"]
+          },
+          "timestamp": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClientWebhookEventData"
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string"
           },
           "message": {
             "type": "string"
           }
         }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["ok", "error"],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        }
       }
     },
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
       }
     }
   }

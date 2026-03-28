@@ -1,33 +1,79 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "Introduction"
+description: "Authentication, envelopes, and conventions for the Offload API."
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Base URL
 
-## Welcome
+Current deployed API URL in this workspace:
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
-
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+```text
+https://2dr03s75sl.execute-api.us-west-2.amazonaws.com
+```
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+Client-facing routes require the `x-api-key` header.
+
+```http
+x-api-key: your-api-key
+```
+
+If the header is missing or invalid, the API returns `401`.
+
+## Success envelope
+
+Every successful response is wrapped in:
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+{
+  "ok": true,
+  "data": {}
+}
 ```
+
+## Error envelope
+
+Every error response is wrapped in:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Human readable message"
+  }
+}
+```
+
+## Public endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/cases` | Create a new asynchronous coordination case |
+| `GET` | `/cases/{id}` | Retrieve the current case status |
+| `POST` | `/cases/{id}/input` | Resume a case that is waiting for human input |
+
+## Status model
+
+| Status | Meaning |
+| --- | --- |
+| `CREATED` | Accepted and persisted, waiting for async processing |
+| `RUNNING` | Outreach or follow-up is in progress |
+| `INPUT_NEEDED` | Offload is paused and waiting for your answer |
+| `COMPLETED` | Goal achieved and structured result is available |
+| `FAILED` | Workflow could not complete |
+
+## Webhooks
+
+If `clientWebhookUrl` is set on case creation, Offload sends outbound POST requests when a case:
+
+- completes
+- fails
+- pauses for human input
+
+See [Webhook events](/api-reference/webhook-events) for payloads.
+
+## OpenAPI
+
+The raw specification lives at [openapi.json](/api-reference/openapi.json).

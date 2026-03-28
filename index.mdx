@@ -1,97 +1,67 @@
 ---
 title: "Introduction"
-description: "Welcome to the new home for your documentation"
+description: "Offload is the API for asynchronous human coordination."
 ---
 
-## Setting up
+Offload lets your product hand off messy, multi-step human follow-up to an API.
 
-Get your documentation site up and running in minutes.
+You create a case with a goal, the person to contact, and the shape of the result you want back. Offload handles the outreach, follow-ups, reply analysis, and final webhook delivery.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+## What you can automate
 
-## Make it yours
+Offload is a good fit when your backend knows the desired outcome but does not want to manage an inbox, reminder cadence, or thread parsing.
 
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Collect documents" icon="file">
+    W-9s, vendor agreements, signed forms, or any paperwork that takes a few follow-ups.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Confirm details" icon="check">
+    Appointment times, logistics, account information, invoice updates, or missing onboarding data.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Pause for human input" icon="user">
+    If the workflow needs a business decision, Offload pauses and asks your app for more context.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Receive structured results" icon="code">
+    When the case is done, your system gets typed JSON instead of raw email text.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Core flow
 
-Everything you need to create world-class documentation.
+<Steps>
+  <Step title="Create a case">
+    Call `POST /cases` with the goal, counterparty, sender persona, and optional `resultSchema`.
+  </Step>
+  <Step title="Let Offload run the thread">
+    Offload sends the initial outreach, waits for replies, follows up on a schedule, and evaluates each response.
+  </Step>
+  <Step title="Handle webhook events">
+    Your app receives `case.completed`, `case.failed`, or `case.input_needed` as the workflow progresses.
+  </Step>
+  <Step title="Resume if input is needed">
+    When Offload pauses, call `POST /cases/{id}/input` with the `inputRequestId` and the missing context.
+  </Step>
+</Steps>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Start with these pages
 
-## Need inspiration?
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Make your first API call and wire up webhook handling.
+  </Card>
+  <Card title="Case lifecycle" icon="map" href="/concepts/lifecycle">
+    Understand statuses, retries, and when a case becomes terminal.
+  </Card>
+  <Card title="Result schema" icon="code" href="/guides/result-schema">
+    Learn how to shape the JSON payload you want back.
+  </Card>
+  <Card title="Webhook events" icon="terminal" href="/api-reference/webhook-events">
+    See the exact event payloads your backend should expect.
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Product notes
+
+- Current public workflows are email-first. Use `channel: "EMAIL"` in production requests.
+- API authentication uses the `x-api-key` header on client-facing routes.
+- The current deployed API base URL in this workspace is `https://2dr03s75sl.execute-api.us-west-2.amazonaws.com`.

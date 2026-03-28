@@ -1,0 +1,91 @@
+---
+title: "Get Case"
+description: "GET /cases/{id}"
+---
+
+## Endpoint
+
+```http
+GET /cases/{id}
+```
+
+## Auth
+
+```http
+x-api-key: your-api-key
+```
+
+## Purpose
+
+Returns the current public state of a case owned by the authenticated client.
+
+## Path parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The case ID returned by `POST /cases`. |
+
+## Example response
+
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "case_123",
+    "clientReferenceId": "vendor_2048",
+    "status": "COMPLETED",
+    "createdAt": 1774131000000,
+    "updatedAt": 1774131900000,
+    "nextActionAt": 253402300799000,
+    "attemptCount": 2,
+    "maxAttempts": 3,
+    "channel": "EMAIL",
+    "counterparty": {
+      "address": "ap@northstar.example",
+      "name": "Maya Chen",
+      "company": "Northstar Supplies",
+      "timezone": "America/Los_Angeles"
+    },
+    "resultStatus": "goal_achieved",
+    "result": {
+      "signedW9Received": true,
+      "taxId": "12-3456789",
+      "documentUrl": "https://files.example.com/w9.pdf"
+    },
+    "goal": {
+      "objective": "Collect a signed W-9 from the vendor"
+    },
+    "resultSchema": {
+      "type": "object"
+    },
+    "senderPersona": {
+      "name": "Avery",
+      "role": "Accounts Payable"
+    },
+    "constraints": ["Email only"]
+  }
+}
+```
+
+## Returned fields
+
+This endpoint returns:
+
+- case identity and timestamps
+- current `status`
+- retry state like `attemptCount` and `maxAttempts`
+- counterparty, goal, sender persona, and constraints
+- `resultStatus` and `result` when available
+
+## Important limitation
+
+When a case is in `INPUT_NEEDED`, this endpoint currently returns the status change but not the active `inputRequest` details. Store the `case.input_needed` webhook if you need to resume the workflow later.
+
+## Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `400` | `INVALID_REQUEST` | Missing case ID |
+| `401` | `UNAUTHORIZED` | Missing or invalid API key |
+| `403` | `FORBIDDEN` | The case belongs to another client |
+| `404` | `CASE_NOT_FOUND` | No case exists for that ID |
