@@ -25,6 +25,12 @@ Returns the current public state of a case owned by the authenticated client.
 | --- | --- | --- | --- |
 | `id` | string | Yes | The case ID returned by `POST /cases`. |
 
+## Query parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `includeTranscript` | boolean | No | Set to `true` to fetch the full case email transcript from AgentMail and include it as `conversationThread`. |
+
 ## Example response
 
 ```json
@@ -62,7 +68,43 @@ Returns the current public state of a case owned by the authenticated client.
       "name": "Avery",
       "role": "Accounts Payable"
     },
-    "constraints": ["Email only"]
+    "constraints": ["Email only"],
+    "inputRequest": null
+  }
+}
+```
+
+## Example response with transcript
+
+Request:
+
+```http
+GET /cases/{id}?includeTranscript=true
+```
+
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "case_123",
+    "status": "RUNNING",
+    "createdAt": 1774131000000,
+    "updatedAt": 1774131900000,
+    "attemptCount": 2,
+    "maxAttempts": 3,
+    "channel": "EMAIL",
+    "counterparty": {
+      "address": "ap@northstar.example",
+      "name": "Maya Chen"
+    },
+    "goal": {
+      "objective": "Collect a signed W-9 from the vendor"
+    },
+    "senderPersona": {
+      "name": "Avery"
+    },
+    "inputRequest": null,
+    "conversationThread": "From: Avery <avery@agentmail.to>\nTimestamp: 2026-03-20T18:10:00.000Z\nMessage: Hi Maya, could you send the signed W-9?\n\n---\n\nFrom: Maya Chen <ap@northstar.example>\nTimestamp: 2026-03-21T15:42:00.000Z\nMessage: Attached here."
   }
 }
 ```
@@ -76,10 +118,43 @@ This endpoint returns:
 - retry state like `attemptCount` and `maxAttempts`
 - counterparty, goal, sender persona, and constraints
 - `resultStatus` and `result` when available
+- `inputRequest` as either `null` or an object with `id`, `question`, `status`, and `requestedAt`
+- `conversationThread` only when you request `includeTranscript=true`
 
-## Important limitation
+When a case is in `INPUT_NEEDED`, `inputRequest` includes the active question the case is waiting on.
 
-When a case is in `INPUT_NEEDED`, this endpoint currently returns the status change but not the active `inputRequest` details. Store the `case.input_needed` webhook if you need to resume the workflow later.
+If you request `includeTranscript=true`, Offload fetches the current email thread from AgentMail at read time. If the case does not yet have an email thread, `conversationThread` is returned as `null`. When `includeTranscript` is omitted, `conversationThread` is omitted from the response.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "case_123",
+    "status": "INPUT_NEEDED",
+    "createdAt": 1774131000000,
+    "updatedAt": 1774131900000,
+    "attemptCount": 2,
+    "maxAttempts": 3,
+    "channel": "EMAIL",
+    "counterparty": {
+      "address": "ap@northstar.example",
+      "name": "Maya Chen"
+    },
+    "goal": {
+      "objective": "Collect a signed W-9 from the vendor"
+    },
+    "senderPersona": {
+      "name": "Avery"
+    },
+    "inputRequest": {
+      "id": "inputreq_123",
+      "question": "Can we accept a digital signature for this vendor?",
+      "status": "PENDING",
+      "requestedAt": 1774131900000
+    }
+  }
+}
+```
 
 ## Errors
 

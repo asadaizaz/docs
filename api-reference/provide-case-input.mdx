@@ -54,7 +54,7 @@ Accepts human input for a case that is paused in `INPUT_NEEDED`.
 }
 ```
 
-`202 Accepted` means the input was queued successfully. The case continues asynchronously after that.
+`202 Accepted` means the input was queued successfully. The case continues asynchronously after that and may immediately send the next reply if Offload now has enough context to proceed.
 
 ## Conflict cases
 

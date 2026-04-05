@@ -74,6 +74,15 @@ If you omit them:
 - `maxAttempts` defaults to `3`
 - `followUpDelayHours` defaults to `72`
 
+## Current plan limits
+
+Offload currently enforces monthly case caps when you create a case:
+
+- `SANDBOX`: `100` created or finished cases per UTC calendar month
+- `PRODUCTION`: `2500` created or finished cases per UTC calendar month as a soft cap
+
+If either counter is already at the limit for the current UTC calendar month, `POST /cases` returns `429`.
+
 ## Current channel support
 
 The API schema includes `EMAIL` and `SMS`, but the current workflow in this codebase is email-first. Use `EMAIL` for production integrations unless your team has enabled an additional channel separately.

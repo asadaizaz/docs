@@ -61,6 +61,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Monthly usage limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -77,6 +87,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "includeTranscript",
+            "in": "query",
+            "description": "When true, fetches the full case email transcript from AgentMail and includes it as conversationThread.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -290,12 +309,6 @@
           },
           "tone": {
             "type": "string"
-          },
-          "customInstructions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         }
       },
@@ -389,6 +402,25 @@
           }
         }
       },
+      "CaseInputRequestResponse": {
+        "type": "object",
+        "required": ["id", "question", "status", "requestedAt"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["RESOLVED", "NONE", "PENDING"]
+          },
+          "requestedAt": {
+            "type": ["integer", "null"]
+          }
+        }
+      },
       "GetCaseResponseData": {
         "type": "object",
         "required": [
@@ -401,7 +433,8 @@
           "channel",
           "counterparty",
           "goal",
-          "senderPersona"
+          "senderPersona",
+          "inputRequest"
         ],
         "properties": {
           "caseId": {
@@ -458,6 +491,20 @@
             "items": {
               "type": "string"
             }
+          },
+          "inputRequest": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CaseInputRequestResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conversationThread": {
+            "type": ["string", "null"],
+            "description": "Formatted case email transcript. Only included when includeTranscript=true is requested."
           }
         }
       },

@@ -19,6 +19,10 @@ x-api-key: your-api-key
 
 Creates a new asynchronous coordination case and starts the workflow.
 
+<Info>
+  Offload currently enforces monthly case caps when you create a case. The current limits are `100` created or finished cases per UTC calendar month on `SANDBOX`, and a `2500` case soft cap per UTC calendar month on `PRODUCTION`.
+</Info>
+
 ## Request body
 
 | Field | Type | Required | Notes |
@@ -89,4 +93,5 @@ Creates a new asynchronous coordination case and starts the workflow.
 | --- | --- | --- |
 | `400` | `INVALID_REQUEST` | Malformed JSON or failed validation |
 | `401` | `UNAUTHORIZED` | Missing or invalid API key |
+| `429` | `USAGE_LIMIT_REACHED` | Your monthly plan limit for created or finished cases has been reached |
 | `500` | `INTERNAL_ERROR` | The case could not be created |

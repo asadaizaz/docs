@@ -26,6 +26,10 @@ export OFFLOAD_API_KEY="your-api-key"
   Use the `x-api-key` header on `POST /cases`, `GET /cases/{id}`, and `POST /cases/{id}/input`.
 </Warning>
 
+<Info>
+  `POST /cases` is currently rate-limited by plan usage. `SANDBOX` supports up to `100` created or finished cases per UTC calendar month. `PRODUCTION` currently has a `2500` case soft cap per UTC calendar month.
+</Info>
+
 ## 2. Create a case
 
 This example asks Offload to collect a signed W-9 and return structured data when the task is complete.
@@ -169,6 +173,8 @@ Accepted response:
   }
 }
 ```
+
+After the input is accepted, Offload resumes the workflow asynchronously. If the provided context answers the counterparty's question, Offload can send the next reply automatically in the same thread.
 
 ## 5. Poll if needed
 

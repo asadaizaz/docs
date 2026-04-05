@@ -32,7 +32,7 @@ flowchart LR
 - Async processing sends the initial outreach and moves the case into active execution.
 - Inbound replies are evaluated to decide whether the case is complete, failed, needs a reply, or needs human input.
 - Scheduled follow-ups continue until the counterparty replies or the retry budget is exhausted.
-- Human input resumes a paused case through `POST /cases/{id}/input`.
+- Human input resumes a paused case through `POST /cases/{id}/input`, after which Offload re-evaluates the thread and may immediately send the next reply.
 
 ## Terminal outcomes
 
