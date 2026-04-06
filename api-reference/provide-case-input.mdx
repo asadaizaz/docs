@@ -9,70 +9,96 @@ description: "POST /cases/{id}/input"
 POST /cases/{id}/input
 ```
 
-## Auth
+## Purpose
+
+Queues human input for a case that is currently paused in `INPUT_NEEDED`.
+
+## Authentication
 
 ```http
 x-api-key: your-api-key
 ```
 
-## Purpose
-
-Accepts human input for a case that is paused in `INPUT_NEEDED`.
-
-## Path parameters
+## Path Parameters
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `id` | string | Yes | The target case ID. |
+| `id` | string | Yes | Case ID |
 
-## Request body
+## Request Body
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `inputRequestId` | string | Yes | Must match the active request from the webhook. |
-| `providedContext` | string | Yes | The answer or context Offload should use next. |
+| `inputRequestId` | string | Yes | Must match the active request on the case |
+| `providedContext` | string | Yes | Your answer or missing context |
 
-## Example request
+Both fields are trimmed and must be non-empty strings.
 
-```json
-{
-  "inputRequestId": "input-request-123",
-  "providedContext": "Yes, next Monday is acceptable. Ask them to send the signed form by 5 PM PT."
-}
+## Example Request
+
+```bash
+curl -X POST "$OFFLOAD_BASE_URL/cases/4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f/input" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $OFFLOAD_API_KEY" \
+  -d '{
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
+    "providedContext": "Yes. A signed PDF is acceptable. Ask them to send it by Friday."
+  }'
 ```
 
-## Example response
+## Successful Response
 
 ```json
 {
   "ok": true,
   "data": {
-    "caseId": "case_123",
-    "inputRequestId": "input-request-123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
     "accepted": true
   }
 }
 ```
 
-`202 Accepted` means the input was queued successfully. The case continues asynchronously after that and may immediately send the next reply if Offload now has enough context to proceed.
+## What `202 Accepted` Means
 
-## Conflict cases
+`202` means:
+
+- the input passed validation
+- the case was found and owned by the caller
+- the internal queue accepted the follow-up work
+
+It does not mean:
+
+- the worker already processed your answer
+- the case has already left `INPUT_NEEDED`
+- a reply was already sent
+
+## Transient State To Expect
+
+Immediately after `202`:
+
+- the API updates `inputRequestStatus` to `RESOLVED`
+- the case can still be `INPUT_NEEDED` until the worker finishes
+
+Your app should wait for the next webhook or poll the case.
+
+## Conflict Errors
 
 This endpoint returns `409` when:
 
-- the case is not in `INPUT_NEEDED`
-- the input request is no longer `PENDING`
-- the provided `inputRequestId` no longer matches the active request
+- the case is not currently waiting for input
+- the active request is no longer pending
+- the `inputRequestId` does not match the currently active request
 
 ## Errors
 
 | Status | Code | Meaning |
 | --- | --- | --- |
-| `400` | `INVALID_REQUEST` | Missing case ID or invalid body |
+| `400` | `INVALID_REQUEST` | Missing case ID, malformed JSON, or invalid body |
 | `401` | `UNAUTHORIZED` | Missing or invalid API key |
-| `403` | `FORBIDDEN` | The case belongs to another client |
+| `403` | `FORBIDDEN` | Inactive API key or case belongs to another user |
 | `404` | `CASE_NOT_FOUND` | No case exists for that ID |
-| `409` | `CASE_NOT_WAITING_FOR_INPUT` | The case is not paused for input |
-| `409` | `INPUT_REQUEST_NOT_PENDING` | The active request is already resolved |
-| `409` | `INPUT_REQUEST_MISMATCH` | The input request ID is stale or incorrect |
-| `500` | `INTERNAL_ERROR` | The input could not be accepted |
+| `409` | `CASE_NOT_WAITING_FOR_INPUT` | Case is not paused for input |
+| `409` | `INPUT_REQUEST_NOT_PENDING` | Input request is already resolved |
+| `409` | `INPUT_REQUEST_MISMATCH` | Input request ID is stale or wrong |
+| `500` | `INTERNAL_ERROR` | Queueing the input failed |

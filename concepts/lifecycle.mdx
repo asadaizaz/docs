@@ -1,74 +1,124 @@
 ---
 title: "Case Lifecycle"
-description: "Statuses, transitions, and what to expect as Offload works a case."
+description: "How a case moves through creation, outreach, follow-up, pause, completion, and failure."
 ---
+
+Offload cases are async. `POST /cases` only stores the case and queues work. The actual outreach, follow-up, and reply analysis happen later in the worker.
 
 ## Statuses
 
-| Status | Meaning |
-| --- | --- |
-| `CREATED` | The case was accepted and queued. |
-| `RUNNING` | Offload is actively managing outreach, replies, or follow-ups. |
-| `INPUT_NEEDED` | Offload is blocked on a human decision or missing fact from your app. |
-| `COMPLETED` | The goal was achieved and `result` is available. |
-| `FAILED` | The workflow could not complete. |
+| Status | Set by | Meaning |
+| --- | --- | --- |
+| `CREATED` | `POST /cases` | The case was accepted and queued. No outreach has been sent yet. |
+| `RUNNING` | Worker | Offload has sent the initial outreach or is actively managing the thread. |
+| `INPUT_NEEDED` | Worker | Offload cannot continue without a human answer from your app. |
+| `COMPLETED` | Worker | The goal was achieved and `result` is available. |
+| `FAILED` | Worker or AgentMail event handler | The case cannot continue. |
 
-## Typical flow
+## End-To-End Flow
 
 ```mermaid
 flowchart LR
   A["POST /cases"] --> B["CREATED"]
-  B --> C["RUNNING"]
-  C --> D["COMPLETED"]
-  C --> E["INPUT_NEEDED"]
-  E --> F["POST /cases/{id}/input"]
-  F --> C
-  C --> G["FAILED"]
+  B --> C["Worker sends initial outreach"]
+  C --> D["RUNNING"]
+  D --> E["Counterparty replies"]
+  E --> F{"Worker decision"}
+  F --> G["COMPLETED"]
+  F --> H["INPUT_NEEDED"]
+  F --> I["RUNNING (reply sent)"]
+  F --> J["RUNNING (snoozed recheck)"]
+  F --> K["FAILED"]
+  H --> L["POST /cases/{id}/input"]
+  L --> M["Worker re-evaluates input"]
+  M --> G
+  M --> I
+  M --> J
+  M --> K
+  D --> N["Scheduled follow-up due"]
+  N --> O{"Counterparty replied?"}
+  O --> D
+  O --> P["Send follow-up"]
+  P --> D
+  P --> K
 ```
 
-## What changes state
+## What Happens After Creation
 
-- Case creation moves a case into `CREATED`.
-- Async processing sends the initial outreach and moves the case into active execution.
-- Inbound replies are evaluated to decide whether the case is complete, failed, needs a reply, or needs human input.
-- Scheduled follow-ups continue until the counterparty replies or the retry budget is exhausted.
-- Human input resumes a paused case through `POST /cases/{id}/input`, after which Offload re-evaluates the thread and may immediately send the next reply.
+1. `POST /cases` stores the case with `status: "CREATED"` and `attemptCount: 0`.
+2. The API enqueues a `CASE_CREATED` worker event.
+3. The worker generates the initial outreach.
+4. If the send succeeds:
+   - `status` becomes `RUNNING`
+   - `attemptCount` becomes `1`
+   - `nextActionAt` is scheduled using `followUpDelayHours`
+5. If the send fails with a terminal provider error, the case becomes `FAILED`.
 
-## Terminal outcomes
+## How Follow-Ups Work
 
-### `COMPLETED`
+The code runs a cron job every hour to find due `RUNNING` cases and queue follow-up work.
 
-Use the webhook `case.completed` as your primary trigger to consume structured output.
+When a follow-up event is processed:
 
-Typical values:
+- if the counterparty already replied, Offload clears the schedule and waits for reply evaluation
+- if no reply exists and the follow-up budget is exhausted, the case becomes `FAILED` with `resultStatus: "max_retries"`
+- otherwise Offload sends another email and increments `attemptCount`
 
-- `status: "COMPLETED"`
-- `resultStatus: "goal_achieved"`
-- `result: { ... }`
+### Retry Counting
 
-### `FAILED`
+- `attemptCount` counts outbound messages
+- `maxAttempts` counts only automated follow-ups after the first message
 
-Failures can happen because:
+Example:
 
-- the maximum follow-up attempts were reached
-- the provider bounced, rejected, or complained
-- the counterparty explicitly rejected the request
-- the workflow could not continue
+- after initial outreach: `attemptCount = 1`
+- after two follow-ups: `attemptCount = 3`
 
-Inspect:
+## How Reply Evaluation Works
 
-- `resultStatus`
-- `failureReason`
+When AgentMail reports a reply in the tracked thread, the worker evaluates the thread and the latest reply. The evaluation can lead to:
 
-Not every `FAILED` case is billable usage. In the current product, delivery failures such as bounces, complaints, and rejected sends are excluded from billable finished-case counts.
+- `GOAL_ACHIEVED` -> case becomes `COMPLETED`
+- `FAILED_REJECTED` -> case becomes `FAILED`
+- `INPUT_NEEDED` -> case becomes `INPUT_NEEDED` and emits `case.input_needed`
+- `REQUIRES_REPLY` -> Offload replies in-thread and stays `RUNNING`
+- `SNOOZE` -> Offload schedules a later recheck and stays `RUNNING`
 
-## Human-in-the-loop behavior
+## Human-In-The-Loop Flow
 
-When Offload needs a decision, it emits `case.input_needed` and pauses the workflow.
+When the worker needs your input:
 
-Important detail:
+1. the case becomes `INPUT_NEEDED`
+2. Offload stores `inputRequest`, `inputRequestId`, `inputRequestStatus: "PENDING"`, and `inputRequestedAt`
+3. Offload sends `case.input_needed` if `clientWebhookUrl` is configured
+4. your app submits an answer with `POST /cases/{id}/input`
+5. the API accepts the answer asynchronously and queues worker processing
 
-- the webhook includes `inputRequest` and `inputRequestId`
-- `GET /cases/{id}` currently reflects the `INPUT_NEEDED` status but does not include those input-request fields
+There is no webhook for "input accepted" or "case resumed". You only receive the next `case.completed`, `case.failed`, or `case.input_needed`.
 
-If you need to resume correctly, store the webhook payload.
+## Terminal Outcomes
+
+Known terminal `resultStatus` values produced by the implementation include:
+
+| `status` | Known `resultStatus` values |
+| --- | --- |
+| `COMPLETED` | `goal_achieved` |
+| `FAILED` | `max_retries`, `failed_rejected`, `BOUNCED`, `COMPLAINED`, `REJECTED` |
+
+Treat `resultStatus` as an open string rather than a closed enum. The current code mixes lowercase workflow values and uppercase provider-delivery values.
+
+## Async Guarantees
+
+Internal worker processing is closer to at-least-once than exactly-once:
+
+- events are queued through SQS
+- the worker claims events by idempotency key
+- completed and in-progress duplicates are skipped
+
+Webhook delivery is weaker:
+
+- Offload sends a single outbound HTTP request
+- a failed webhook is only logged
+- the application does not retry delivery
+
+For high-confidence integrations, use webhooks plus periodic polling reconciliation.

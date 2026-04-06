@@ -32,7 +32,10 @@
             "pages": [
               "guides/result-schema",
               "guides/human-in-the-loop",
-              "guides/webhooks"
+              "guides/webhooks",
+              "guides/error-handling",
+              "guides/integration-patterns",
+              "guides/questions-ambiguities"
             ]
           }
         ]

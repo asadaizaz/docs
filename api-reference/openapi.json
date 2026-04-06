@@ -2,361 +2,45 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Offload API",
-    "description": "API for asynchronous human coordination over email.",
-    "version": "1.0.0"
+    "version": "0.1.0",
+    "description": "Implementation-aligned reference for the current public Offload API."
   },
   "servers": [
     {
-      "url": "https://2dr03s75sl.execute-api.us-west-2.amazonaws.com"
+      "url": "https://{host}",
+      "variables": {
+        "host": {
+          "default": "<your-offload-api-host>"
+        }
+      }
     }
   ],
-  "security": [
-    {
-      "ApiKeyAuth": []
-    }
-  ],
-  "paths": {
-    "/cases": {
-      "post": {
-        "summary": "Create case",
-        "description": "Creates a new asynchronous coordination case and enqueues the workflow.",
-        "requestBody": {
-          "description": "Case creation payload",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCaseRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Case created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateCaseResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Monthly usage limit reached",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cases/{id}": {
-      "get": {
-        "summary": "Get case",
-        "description": "Returns the current status and public state for a case owned by the authenticated client.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Case ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "includeTranscript",
-            "in": "query",
-            "description": "When true, fetches the full case email transcript from AgentMail and includes it as conversationThread.",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Case response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetCaseResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Case not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cases/{id}/attachments/{attachmentId}": {
-      "get": {
-        "summary": "Get case attachment",
-        "description": "Returns a fresh expiring download URL for an attachment previously received on the case.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Case ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "attachmentId",
-            "in": "path",
-            "description": "Attachment ID from the case attachments array",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Fresh attachment download link",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetCaseAttachmentApiResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Case or attachment not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cases/{id}/input": {
-      "post": {
-        "summary": "Provide case input",
-        "description": "Resumes a case that is waiting for human input.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Case ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "description": "Human input payload",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProvideCaseInputRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Input accepted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProvideCaseInputResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Case not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Case cannot accept input in its current state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "webhooks": {
-    "caseEvent": {
-      "post": {
-        "description": "Webhook sent to the clientWebhookUrl configured on the case.",
-        "requestBody": {
-          "description": "Webhook event payload",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ClientWebhookEvent"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Return any 2xx status to indicate successful receipt"
-          }
-        }
-      }
-    }
-  },
   "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Public client routes authenticate with the x-api-key header."
+      }
+    },
     "schemas": {
       "Counterparty": {
         "type": "object",
-        "required": ["address", "name"],
+        "additionalProperties": false,
+        "required": [
+          "address",
+          "name"
+        ],
         "properties": {
           "address": {
-            "description": "Email address or phone number to contact.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "description": "Email address or other contact address. The implemented workflow uses this as the email recipient."
           },
           "name": {
-            "description": "Human-friendly name of the counterparty.",
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "company": {
             "type": "string"
@@ -368,16 +52,21 @@
             "type": "object",
             "additionalProperties": {
               "type": "string"
-            }
+            },
+            "description": "Optional string-to-string facts that are injected into prompt context."
           }
         }
       },
       "SenderPersona": {
         "type": "object",
-        "required": ["name"],
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "role": {
             "type": "string"
@@ -392,12 +81,17 @@
       },
       "CaseGoal": {
         "type": "object",
-        "required": ["objective"],
+        "additionalProperties": false,
+        "required": [
+          "objective"
+        ],
         "properties": {
           "objective": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "knowledge": {
+            "description": "Optional additional context. The API accepts either a string or an object.",
             "oneOf": [
               {
                 "type": "string"
@@ -412,28 +106,42 @@
       },
       "CreateCaseRequest": {
         "type": "object",
-        "required": ["channel", "goal", "counterparty", "senderPersona"],
+        "additionalProperties": false,
+        "required": [
+          "channel",
+          "goal",
+          "counterparty",
+          "senderPersona"
+        ],
         "properties": {
           "channel": {
             "type": "string",
-            "enum": ["EMAIL", "SMS"]
+            "enum": [
+              "EMAIL",
+              "SMS"
+            ],
+            "description": "Request validation accepts EMAIL and SMS. The implemented workflow is email-based."
           },
           "clientReferenceId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "constraints": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "maxAttempts": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "Maximum automated follow-up attempts after the initial outreach. Defaults to 3."
           },
           "followUpDelayHours": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "description": "Delay between automated follow-up attempts in hours. Defaults to 72."
           },
           "goal": {
             "$ref": "#/components/schemas/CaseGoal"
@@ -446,7 +154,8 @@
           },
           "resultSchema": {
             "type": "object",
-            "additionalProperties": true
+            "additionalProperties": true,
+            "description": "Expected to be JSON Schema-shaped, but the API only validates that it is an object."
           },
           "clientWebhookUrl": {
             "type": "string",
@@ -456,23 +165,73 @@
             "type": "object",
             "additionalProperties": true
           }
+        },
+        "example": {
+          "clientReferenceId": "vendor_2048",
+          "channel": "EMAIL",
+          "maxAttempts": 3,
+          "followUpDelayHours": 72,
+          "goal": {
+            "objective": "Collect a signed W-9 from the vendor",
+            "knowledge": {
+              "vendorName": "Northstar Supplies",
+              "reason": "AP onboarding"
+            }
+          },
+          "counterparty": {
+            "address": "ap@northstar.example",
+            "name": "Maya Chen",
+            "company": "Northstar Supplies",
+            "timezone": "America/Los_Angeles",
+            "customData": {
+              "vendorId": "vendor_2048"
+            }
+          },
+          "senderPersona": {
+            "name": "Avery",
+            "role": "Accounts Payable",
+            "company": "Example Corp",
+            "tone": "friendly, concise"
+          },
+          "resultSchema": {
+            "type": "object",
+            "properties": {
+              "signedW9Received": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "signedW9Received"
+            ]
+          },
+          "clientWebhookUrl": "https://your-app.example/webhooks/offload",
+          "metadata": {
+            "vendorId": "vendor_2048"
+          }
         }
       },
       "CreateCaseResponseData": {
         "type": "object",
-        "required": ["caseId"],
+        "additionalProperties": false,
+        "required": [
+          "caseId"
+        ],
         "properties": {
           "caseId": {
-            "type": "string"
+            "type": "string",
+            "description": "UUID assigned to the new case."
           }
         }
       },
       "CreateCaseResponse": {
         "type": "object",
-        "required": ["ok", "data"],
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "data"
+        ],
         "properties": {
           "ok": {
-            "type": "boolean",
             "const": true
           },
           "data": {
@@ -482,7 +241,13 @@
       },
       "CaseInputRequestResponse": {
         "type": "object",
-        "required": ["id", "question", "status", "requestedAt"],
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "question",
+          "status",
+          "requestedAt"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -492,49 +257,58 @@
           },
           "status": {
             "type": "string",
-            "enum": ["RESOLVED", "NONE", "PENDING"]
+            "enum": [
+              "RESOLVED",
+              "NONE",
+              "PENDING"
+            ]
           },
           "requestedAt": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         }
       },
       "CaseAttachment": {
         "type": "object",
-        "required": ["attachmentId", "size", "messageId", "inboxId", "receivedAt"],
+        "additionalProperties": false,
+        "required": [
+          "attachmentId",
+          "size",
+          "messageId",
+          "inboxId",
+          "receivedAt"
+        ],
         "properties": {
           "attachmentId": {
-            "type": "string",
-            "description": "Stable attachment ID returned by AgentMail."
+            "type": "string"
           },
           "name": {
-            "type": "string",
-            "description": "Original filename when available."
+            "type": "string"
           },
           "size": {
-            "type": "integer",
-            "description": "Attachment size in bytes."
+            "type": "integer"
           },
           "type": {
-            "type": "string",
-            "description": "MIME content type when available."
+            "type": "string"
           },
           "messageId": {
-            "type": "string",
-            "description": "AgentMail message ID that carried the attachment."
+            "type": "string"
           },
           "inboxId": {
             "type": "string",
-            "description": "AgentMail inbox used to fetch a fresh download URL."
+            "description": "Underlying AgentMail inbox identifier stored on the case."
           },
           "receivedAt": {
-            "type": "integer",
-            "description": "Unix timestamp in milliseconds for when Offload saw the attachment."
+            "type": "integer"
           }
         }
       },
       "GetCaseResponseData": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "caseId",
           "status",
@@ -558,7 +332,13 @@
           },
           "status": {
             "type": "string",
-            "enum": ["CREATED", "RUNNING", "COMPLETED", "FAILED", "INPUT_NEEDED"]
+            "enum": [
+              "CREATED",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "INPUT_NEEDED"
+            ]
           },
           "createdAt": {
             "type": "integer"
@@ -567,17 +347,26 @@
             "type": "integer"
           },
           "nextActionAt": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Next scheduled follow-up timestamp. Unscheduled cases currently return the sentinel 253402300799999."
           },
           "attemptCount": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Outbound messages sent so far."
           },
           "maxAttempts": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Maximum automated follow-up attempts after the initial outreach."
           },
           "channel": {
             "type": "string",
-            "enum": ["EMAIL", "SMS"]
+            "enum": [
+              "EMAIL",
+              "SMS"
+            ]
           },
           "counterparty": {
             "$ref": "#/components/schemas/Counterparty"
@@ -587,10 +376,11 @@
             "items": {
               "$ref": "#/components/schemas/CaseAttachment"
             },
-            "description": "Inbound attachments seen on the case. Use the attachment endpoint to mint fresh download URLs."
+            "description": "Inbound attachments tracked on the case."
           },
           "resultStatus": {
-            "type": "string"
+            "type": "string",
+            "description": "Open workflow outcome string. Known values include goal_achieved, max_retries, failed_rejected, BOUNCED, COMPLAINED, and REJECTED."
           },
           "result": {
             "type": "object",
@@ -623,17 +413,23 @@
             ]
           },
           "conversationThread": {
-            "type": ["string", "null"],
-            "description": "Formatted case email transcript. Only included when includeTranscript=true is requested."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Formatted plain-text transcript. Only included when includeTranscript=true."
           }
         }
       },
       "GetCaseResponse": {
         "type": "object",
-        "required": ["ok", "data"],
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "data"
+        ],
         "properties": {
           "ok": {
-            "type": "boolean",
             "const": true
           },
           "data": {
@@ -648,17 +444,19 @@
           },
           {
             "type": "object",
-            "required": ["downloadUrl", "expiresAt"],
+            "additionalProperties": false,
+            "required": [
+              "downloadUrl",
+              "expiresAt"
+            ],
             "properties": {
               "downloadUrl": {
                 "type": "string",
-                "format": "uri",
-                "description": "Fresh expiring AgentMail download URL."
+                "format": "uri"
               },
               "expiresAt": {
                 "type": "string",
-                "format": "date-time",
-                "description": "When the download URL expires."
+                "format": "date-time"
               }
             }
           }
@@ -666,10 +464,13 @@
       },
       "GetCaseAttachmentApiResponse": {
         "type": "object",
-        "required": ["ok", "data"],
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "data"
+        ],
         "properties": {
           "ok": {
-            "type": "boolean",
             "const": true
           },
           "data": {
@@ -679,19 +480,30 @@
       },
       "ProvideCaseInputRequest": {
         "type": "object",
-        "required": ["inputRequestId", "providedContext"],
+        "additionalProperties": false,
+        "required": [
+          "inputRequestId",
+          "providedContext"
+        ],
         "properties": {
           "inputRequestId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "providedContext": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         }
       },
       "ProvideCaseInputResponseData": {
         "type": "object",
-        "required": ["caseId", "inputRequestId", "accepted"],
+        "additionalProperties": false,
+        "required": [
+          "caseId",
+          "inputRequestId",
+          "accepted"
+        ],
         "properties": {
           "caseId": {
             "type": "string"
@@ -700,17 +512,19 @@
             "type": "string"
           },
           "accepted": {
-            "type": "boolean",
             "const": true
           }
         }
       },
       "ProvideCaseInputResponse": {
         "type": "object",
-        "required": ["ok", "data"],
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "data"
+        ],
         "properties": {
           "ok": {
-            "type": "boolean",
             "const": true
           },
           "data": {
@@ -720,7 +534,14 @@
       },
       "ClientWebhookEventData": {
         "type": "object",
-        "required": ["caseId", "status", "channel", "attemptCount", "attachments"],
+        "additionalProperties": false,
+        "required": [
+          "caseId",
+          "status",
+          "channel",
+          "attemptCount",
+          "attachments"
+        ],
         "properties": {
           "caseId": {
             "type": "string"
@@ -730,11 +551,20 @@
           },
           "status": {
             "type": "string",
-            "enum": ["CREATED", "RUNNING", "COMPLETED", "FAILED", "INPUT_NEEDED"]
+            "enum": [
+              "CREATED",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "INPUT_NEEDED"
+            ]
           },
           "channel": {
             "type": "string",
-            "enum": ["EMAIL", "SMS"]
+            "enum": [
+              "EMAIL",
+              "SMS"
+            ]
           },
           "attemptCount": {
             "type": "integer"
@@ -743,8 +573,7 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CaseAttachment"
-            },
-            "description": "Inbound attachments seen on the case."
+            }
           },
           "result": {
             "type": "object",
@@ -758,32 +587,57 @@
             "type": "string"
           },
           "failureReason": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputRequest": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputRequestId": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputRequestStatus": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputRequestedAt": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         }
       },
       "ClientWebhookEvent": {
         "type": "object",
-        "required": ["event_id", "event_type", "timestamp", "data"],
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "event_type",
+          "timestamp",
+          "data"
+        ],
         "properties": {
           "event_id": {
             "type": "string"
           },
           "event_type": {
             "type": "string",
-            "enum": ["case.completed", "case.failed", "case.input_needed"]
+            "enum": [
+              "case.completed",
+              "case.failed",
+              "case.input_needed"
+            ]
           },
           "timestamp": {
             "type": "integer"
@@ -795,7 +649,11 @@
       },
       "ErrorBody": {
         "type": "object",
-        "required": ["code", "message"],
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message"
+        ],
         "properties": {
           "code": {
             "type": "string"
@@ -807,10 +665,13 @@
       },
       "ErrorResponse": {
         "type": "object",
-        "required": ["ok", "error"],
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "error"
+        ],
         "properties": {
           "ok": {
-            "type": "boolean",
             "const": false
           },
           "error": {
@@ -818,12 +679,354 @@
           }
         }
       }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "paths": {
+    "/cases": {
+      "post": {
+        "summary": "Create case",
+        "description": "Creates a case, stores it with status CREATED, and queues async processing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Case created and queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inactive API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Usage limit reached or gateway throttling",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error while creating the case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     },
-    "securitySchemes": {
-      "ApiKeyAuth": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "x-api-key"
+    "/cases/{id}": {
+      "get": {
+        "summary": "Get case",
+        "description": "Returns the current public case state. If includeTranscript=true, Offload fetches and formats the live AgentMail thread.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeTranscript",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Transcript is only included when this value is the literal string true."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current case state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing case ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inactive API key or case belongs to another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected upstream or platform error. Transcript-fetch failures may not use the standard JSON envelope."
+          }
+        }
+      }
+    },
+    "/cases/{id}/attachments/{attachmentId}": {
+      "get": {
+        "summary": "Get case attachment",
+        "description": "Returns a fresh download URL for an attachment already stored on the case.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fresh attachment download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCaseAttachmentApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing case ID or attachment ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inactive API key or case belongs to another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Case or attachment not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Attachment lookup failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{id}/input": {
+      "post": {
+        "summary": "Provide case input",
+        "description": "Queues human input for a case paused in INPUT_NEEDED.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvideCaseInputRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Input accepted and queued for async processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvideCaseInputResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing case ID or invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inactive API key or case belongs to another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Case is not waiting for input, the request is no longer pending, or the request ID is stale",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to queue the provided input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

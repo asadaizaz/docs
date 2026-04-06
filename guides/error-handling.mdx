@@ -1,0 +1,118 @@
+---
+title: "Error Handling"
+description: "How API errors, throttling, webhook failures, and edge cases behave in the current implementation."
+---
+
+## Standard API Error Envelope
+
+Application-level handlers return errors in this shape:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Human readable message"
+  }
+}
+```
+
+Successful responses use:
+
+```json
+{
+  "ok": true,
+  "data": {}
+}
+```
+
+## Authentication Errors
+
+The auth layer behaves like this:
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `401` | `UNAUTHORIZED` | Missing `x-api-key` or API key hash not found |
+| `403` | `FORBIDDEN` | API key exists but is not active |
+
+Route handlers can also return `403` when you try to access a case owned by another user.
+
+## Validation And Conflict Errors
+
+| Status | Code | Where it happens |
+| --- | --- | --- |
+| `400` | `INVALID_REQUEST` | Malformed JSON or schema validation failure |
+| `404` | `CASE_NOT_FOUND` | Case does not exist |
+| `404` | `ATTACHMENT_NOT_FOUND` | Attachment ID is not on the case |
+| `409` | `CASE_NOT_WAITING_FOR_INPUT` | `POST /cases/{id}/input` called when the case is not paused |
+| `409` | `INPUT_REQUEST_NOT_PENDING` | Input request was already resolved |
+| `409` | `INPUT_REQUEST_MISMATCH` | `inputRequestId` is stale or wrong |
+
+## `429` Cases
+
+There are two different ways to get throttled:
+
+### Usage Limit `429`
+
+`POST /cases` returns:
+
+- status `429`
+- code `USAGE_LIMIT_REACHED`
+
+This happens when the current UTC billing month has already reached the configured plan cap.
+
+### Gateway Throttling `429`
+
+API Gateway also has route throttling configured:
+
+- `POST /cases` has a tighter limit than other routes
+- defaults vary by environment
+
+Those platform-generated `429` responses may not use the standard JSON envelope.
+
+## `500` Cases
+
+Known handler behavior:
+
+- `POST /cases` returns `INTERNAL_ERROR` when persistence or queueing fails
+- `POST /cases/{id}/input` returns `INTERNAL_ERROR` when queueing the input fails
+- `GET /cases/{id}/attachments/{attachmentId}` returns `INTERNAL_ERROR` when AgentMail attachment lookup fails
+
+### Transcript Fetch Caveat
+
+`GET /cases/{id}` does not wrap transcript-fetch failures in a local `try/catch`.
+
+If `includeTranscript=true` and the AgentMail thread fetch fails, the platform may return a generic `500` instead of the standard JSON error shape.
+
+## Webhook Failure Handling
+
+Webhook delivery is best-effort:
+
+- one HTTP request
+- no signature
+- no retry
+- failure only logged server-side
+
+If webhook delivery matters for your workflow, poll for reconciliation.
+
+## FAQ / Edge Cases
+
+### Does `POST /cases` support idempotency?
+
+No. Sending the same request twice creates two cases.
+
+### Does `202 Accepted` on `POST /cases/{id}/input` mean the case has resumed?
+
+No. It only means the input was queued successfully.
+
+### Why is `nextActionAt` a huge number?
+
+The code uses `253402300799999` as an "unscheduled" sentinel instead of `null`.
+
+### Is `resultStatus` a closed enum?
+
+No. Known values exist, but the implementation types it as `string` and currently mixes lowercase workflow values with uppercase provider-delivery values.
+
+### Is `metadata` returned by `GET /cases/{id}`?
+
+No. The current public read endpoint omits it. Webhooks include it.

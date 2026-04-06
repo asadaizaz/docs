@@ -1,29 +1,35 @@
 ---
 title: "Introduction"
-description: "Authentication, envelopes, and conventions for the Offload API."
+description: "Authentication, response envelopes, timestamps, and public-route conventions."
 ---
 
 ## Base URL
 
-Current deployed API URL in this workspace:
+The codebase exposes these public routes, but it does not hardcode a single global hostname. Use the Offload API host for your environment:
 
 ```text
-https://2dr03s75sl.execute-api.us-west-2.amazonaws.com
+https://<your-offload-api-host>
 ```
+
+In SST deployments, the API host is emitted as `api.url`.
 
 ## Authentication
 
-Client-facing routes require the `x-api-key` header.
+Every public client route uses:
 
 ```http
 x-api-key: your-api-key
 ```
 
-If the header is missing or invalid, the API returns `401`.
+Auth behavior:
 
-## Success envelope
+- missing key -> `401 UNAUTHORIZED`
+- invalid key -> `401 UNAUTHORIZED`
+- inactive key -> `403 FORBIDDEN`
 
-Every successful response is wrapped in:
+## Response Envelopes
+
+Application-level success:
 
 ```json
 {
@@ -32,9 +38,7 @@ Every successful response is wrapped in:
 }
 ```
 
-## Error envelope
-
-Every error response is wrapped in:
+Application-level error:
 
 ```json
 {
@@ -46,34 +50,51 @@ Every error response is wrapped in:
 }
 ```
 
-## Public endpoints
+Platform-generated throttling or uncaught upstream errors may not use this envelope.
+
+## Timestamps
+
+The public API currently uses:
+
+- Unix timestamps in milliseconds for most case and webhook timestamps
+- ISO 8601 strings for attachment `expiresAt`
+
+## Public Routes
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/cases` | Create a new asynchronous coordination case |
-| `GET` | `/cases/{id}` | Retrieve the current case status |
-| `POST` | `/cases/{id}/input` | Resume a case that is waiting for human input |
+| `POST` | `/cases` | Create and queue a new case |
+| `GET` | `/cases/{id}` | Read the current public case state |
+| `GET` | `/cases/{id}/attachments/{attachmentId}` | Mint a fresh file download URL |
+| `POST` | `/cases/{id}/input` | Provide human input for a paused case |
 
-## Status model
+## Route Conventions
+
+- `POST /cases` is asynchronous. It stores the case and queues internal processing.
+- `GET /cases/{id}?includeTranscript=true` fetches and formats the live email thread.
+- `POST /cases/{id}/input` returns `202` when the input was queued, not when the workflow has finished reprocessing it.
+- `GET /cases/{id}` returns `inputRequest` when the case has an active or recently resolved input request stored on it.
+
+## Status Model
 
 | Status | Meaning |
 | --- | --- |
-| `CREATED` | Accepted and persisted, waiting for async processing |
-| `RUNNING` | Outreach or follow-up is in progress |
-| `INPUT_NEEDED` | Offload is paused and waiting for your answer |
-| `COMPLETED` | Goal achieved and structured result is available |
-| `FAILED` | Workflow could not complete |
+| `CREATED` | Accepted and queued |
+| `RUNNING` | Initial outreach, follow-up, or reply handling is in progress |
+| `INPUT_NEEDED` | Waiting for your application to answer a question |
+| `COMPLETED` | Goal achieved, with `result` available |
+| `FAILED` | Workflow stopped without success |
 
 ## Webhooks
 
-If `clientWebhookUrl` is set on case creation, Offload sends outbound POST requests when a case:
+If `clientWebhookUrl` is set on case creation, Offload sends:
 
-- completes
-- fails
-- pauses for human input
+- `case.completed`
+- `case.failed`
+- `case.input_needed`
 
-See [Webhook events](/api-reference/webhook-events) for payloads.
+See [Webhook Events](/api-reference/webhook-events) for the exact payloads and [Webhooks](/guides/webhooks) for delivery caveats.
 
 ## OpenAPI
 
-The raw specification lives at [openapi.json](/api-reference/openapi.json).
+The machine-readable spec lives at [openapi.json](/api-reference/openapi.json).

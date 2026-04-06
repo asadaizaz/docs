@@ -1,0 +1,93 @@
+---
+title: "Integration Patterns"
+description: "Practical ways to integrate Offload with webhooks, polling, operator workflows, and file downloads."
+---
+
+## Pattern 1: Webhook-First With Polling Reconciliation
+
+Use this if you want low-latency updates but cannot trust best-effort webhooks alone.
+
+Flow:
+
+1. create the case with `clientWebhookUrl`
+2. process webhook events immediately
+3. store `event_id`
+4. poll non-terminal or recently updated cases on a schedule
+5. repair missed updates from polling
+
+This is the safest production pattern because webhook delivery is single-attempt.
+
+## Pattern 2: Operator Approval Loop
+
+Use this when Offload may need business approval before continuing.
+
+Flow:
+
+1. create case
+2. wait for `case.input_needed`
+3. display `inputRequest` to an operator
+4. submit the answer with `POST /cases/{id}/input`
+5. wait for the next webhook or poll until the case changes state
+
+Minimal TypeScript example:
+
+```ts
+async function provideCaseInput(caseId: string, inputRequestId: string, providedContext: string) {
+  const response = await fetch(`${process.env.OFFLOAD_BASE_URL}/cases/${caseId}/input`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": process.env.OFFLOAD_API_KEY!,
+    },
+    body: JSON.stringify({
+      inputRequestId,
+      providedContext,
+    }),
+  });
+
+  const body = await response.json();
+  if (!response.ok || !body.ok) {
+    throw new Error(body.error?.message ?? "Failed to provide case input");
+  }
+}
+```
+
+## Pattern 3: Attachment Download On Completion
+
+Use this when a completed case may include files.
+
+Flow:
+
+1. receive `case.completed`
+2. inspect `data.attachments`
+3. request a fresh file URL for each attachment you want
+4. download immediately before `expiresAt`
+
+## Pattern 4: On-Demand Transcript Review
+
+Use this for internal tooling, debugging, or support workflows.
+
+```bash
+curl -H "x-api-key: $OFFLOAD_API_KEY" \
+  "$OFFLOAD_BASE_URL/cases/<case-id>?includeTranscript=true"
+```
+
+Notes:
+
+- `conversationThread` is a formatted plain-text transcript, not a structured message array
+- the field is only included when `includeTranscript=true`
+- if the case has no tracked thread yet, `conversationThread` is `null`
+
+## Pattern 5: Use `clientReferenceId` As Your Join Key
+
+Store both:
+
+- your own `clientReferenceId`
+- Offload `caseId`
+
+That gives you:
+
+- an internal join key you control
+- a stable way to find the Offload case from webhook events
+
+`clientReferenceId` is echoed in both `GET /cases/{id}` and webhook payloads when you provide it at creation time.

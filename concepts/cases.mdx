@@ -1,91 +1,95 @@
 ---
 title: "Cases"
-description: "A case is the unit of work Offload manages on your behalf."
+description: "A case is the async unit of work that Offload manages for one counterparty."
 ---
 
-A case represents one asynchronous coordination task with one counterparty.
+A case is one tracked workflow against one counterparty. The current implementation stores it in DynamoDB, processes it asynchronously, and updates it as the thread evolves.
 
-Examples:
+## Core Fields
 
-- collect a signed form
-- confirm invoice details
-- chase a missing document
-- ask follow-up questions until a result can be returned as JSON
+| Field | What it means in the implementation |
+| --- | --- |
+| `caseId` | A random UUID generated when the case is created. |
+| `clientReferenceId` | Your own identifier. Offload stores it and echoes it in `GET /cases/{id}` and webhook payloads. |
+| `channel` | Validated as `EMAIL` or `SMS`, but the workflow is currently email-based. Use `EMAIL`. |
+| `goal` | The business outcome Offload is trying to achieve. `objective` is required. `knowledge` can be a string or an object. |
+| `counterparty` | The person or team Offload contacts. `address` and `name` are required. |
+| `senderPersona` | How Offload should represent your side of the conversation. `name` is required. |
+| `constraints` | Extra instructions the worker passes into the LLM prompt. |
+| `resultSchema` | An optional object describing the shape of the final `result`. The API only validates that it is an object. |
+| `metadata` | Opaque JSON stored on the case and echoed in webhook payloads. It is not currently returned by `GET /cases/{id}`. |
+| `clientWebhookUrl` | Optional URL for outbound webhook delivery. |
 
-## The parts of a case
+## Runtime Fields
 
-### `goal`
-
-The end state Offload is trying to reach.
-
-- `objective` is the plain-language outcome you want.
-- `knowledge` is the extra business context Offload can use while writing and evaluating messages.
-
-### `counterparty`
-
-The human or team Offload contacts.
-
-- `address` is usually an email address
-- `name` is used in the outreach
-- `company`, `timezone`, and `customData` improve message quality and follow-up timing
-
-### `senderPersona`
-
-How Offload should represent your side of the conversation.
-
-Use this to set the sender name, role, company, tone, and any persistent instructions.
-
-### `resultSchema`
-
-Optional JSON Schema that defines the structured payload you want back when the case is successful.
-
-If you care about exact downstream automation, always provide one.
-
-### `constraints`
-
-Hard rules Offload should not violate.
-
-Examples:
-
-- `Email only`
-- `Do not negotiate price`
-- `Do not promise a refund`
-
-## Design advice
-
-Good cases are specific, bounded, and observable.
-
-Prefer:
-
-- "Collect a signed W-9 from the vendor"
-- "Confirm whether the appointment on April 3 at 2 PM works"
-- "Get the corrected invoice for March landscaping services"
-
-Avoid:
-
-- "Handle vendor onboarding"
-- "Figure out what to do"
-- "Manage all communication with this customer forever"
+| Field | Runtime meaning |
+| --- | --- |
+| `status` | One of `CREATED`, `RUNNING`, `INPUT_NEEDED`, `COMPLETED`, `FAILED`. |
+| `attemptCount` | Number of outbound messages sent so far. After the initial outreach succeeds, this becomes `1`. |
+| `maxAttempts` | Maximum number of automated follow-up attempts after the initial outreach. |
+| `nextActionAt` | Unix timestamp in milliseconds for the next scheduled check or follow-up. When nothing is scheduled, the implementation uses `253402300799999`. |
+| `attachments` | Inbound attachments seen on the case thread. Each entry is metadata only. Download URLs are minted separately. |
+| `resultStatus` | A workflow outcome string such as `goal_achieved`, `max_retries`, `failed_rejected`, `BOUNCED`, `COMPLAINED`, or `REJECTED`. Treat this as an open set. |
+| `result` | Structured JSON extracted when the case completes successfully. |
+| `failureReason` | Present on some failures, especially provider delivery failures or explicit rejection-style outcomes. |
+| `inputRequest` | Active human-in-the-loop question, if the case is paused. |
+| `inputRequestId` | Stable identifier for the active input request. |
+| `inputRequestStatus` | `PENDING`, `RESOLVED`, or `NONE`. |
 
 ## Defaults
 
-If you omit them:
+If you omit them at creation time:
 
 - `maxAttempts` defaults to `3`
 - `followUpDelayHours` defaults to `72`
 
-## Current plan limits
+That means a default case can send:
 
-Offload currently enforces monthly case caps when you create a case:
+- 1 initial outreach
+- up to 3 automated follow-ups
 
-- `SANDBOX`: `100` created or billable finished cases per UTC calendar month
-- `PAYG`: `100` created or billable finished cases per UTC calendar month
-- `BASE_PRO`: `500` created or billable finished cases per UTC calendar month
+## Attachments
 
-If either counter is already at the limit for the current UTC calendar month, `POST /cases` returns `429`.
+Attachments are tracked separately from `result`:
 
-Billable finished cases are a filtered subset of terminal outcomes. Successful completions count. Delivery failures such as bounces, complaints, and rejected sends do not count as billable finished usage.
+- they come from inbound reply events
+- they are stored as metadata on the case
+- they appear in webhook payloads and `GET /cases/{id}`
+- you fetch a fresh `downloadUrl` with `GET /cases/{id}/attachments/{attachmentId}`
 
-## Current channel support
+The current implementation does not inspect attachment contents directly.
 
-The API schema includes `EMAIL` and `SMS`, but the current workflow in this codebase is email-first. Use `EMAIL` for production integrations unless your team has enabled an additional channel separately.
+## Usage Limits
+
+`POST /cases` checks monthly usage before creating a new case:
+
+- `SANDBOX`: `100`
+- `PAYG`: `100`
+- `BASE_PRO`: `500`
+
+The limit compares both:
+
+- created cases in the current UTC month
+- billable finished cases in the current UTC month
+
+The code treats completed cases as billable. Failed cases are billable unless the terminal `resultStatus` is `BOUNCED`, `REJECTED`, or `COMPLAINED`.
+
+## Design Advice
+
+Good cases are:
+
+- specific
+- bounded to one outcome
+- easy to verify from the conversation
+
+Good examples:
+
+- "Collect a signed W-9 from the vendor."
+- "Confirm whether the Tuesday delivery window works."
+- "Get the corrected March invoice."
+
+Poor examples:
+
+- "Handle vendor onboarding."
+- "Figure out what to do."
+- "Manage all communication with this account forever."

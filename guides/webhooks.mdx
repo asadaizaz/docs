@@ -1,80 +1,95 @@
 ---
 title: "Webhooks"
-description: "How Offload delivers state changes back to your application."
+description: "How Offload sends async case state changes back to your application."
 ---
 
-If you provide `clientWebhookUrl` when creating a case, Offload sends JSON POST requests to your system as the case changes state.
+If you provide `clientWebhookUrl` when creating a case, Offload sends JSON `POST` requests when the case reaches one of its outward-facing async states.
 
-## Event types
+## Events You Can Receive
 
-| Event | Meaning |
+| Event | When it is sent |
 | --- | --- |
-| `case.completed` | The goal was achieved and a structured result is available. |
-| `case.failed` | The workflow stopped without success. |
-| `case.input_needed` | Offload is blocked on a human answer from your app. |
+| `case.completed` | The worker marked the case `COMPLETED`. |
+| `case.failed` | The worker or AgentMail event handler marked the case `FAILED`. |
+| `case.input_needed` | The worker paused the case and needs input from your app. |
 
-## Payload shape
+There are no webhook events for:
 
-Every webhook includes:
+- case creation
+- case accepted
+- case resumed after input
+- case currently running
+
+## Delivery Behavior
+
+The current implementation sends webhooks like this:
+
+- method: `POST`
+- header: `content-type: application/json`
+- body: serialized JSON event envelope
+- success rule: any HTTP `2xx`
+- retry behavior: none in application code
+- signing: none
+
+If the request fails or returns a non-`2xx`, Offload logs the failure and drops it.
+
+<Warning>
+  This is the most important webhook constraint in the current implementation: delivery is best-effort, single-attempt, and unsigned. Use HTTPS, dedupe with `event_id`, and run a polling reconciliation job for important workflows.
+</Warning>
+
+## Event Envelope
 
 ```json
 {
-  "event_id": "evt_case_123_case_completed_1774131900000",
+  "event_id": "evt_4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f_case_completed_1774131900000",
   "event_type": "case.completed",
   "timestamp": 1774131900000,
   "data": {}
 }
 ```
 
-`data` contains the case-specific fields such as:
+`event_id` is deterministic for a specific case update:
 
-- `caseId`
-- `clientReferenceId`
-- `status`
-- `attemptCount`
-- `attachments`
-- `result`
-- `resultStatus`
-- `failureReason`
-- `inputRequest`
-- `inputRequestId`
+- it includes the case ID
+- it includes the event type
+- it includes the case `updatedAt` timestamp
 
-## Delivery guidance
+That makes it a good dedupe key on your side.
 
-Current implementation notes from this codebase:
-
-- webhooks are sent as JSON with `content-type: application/json`
-- Offload expects a successful HTTP response from your endpoint
-- there is currently no webhook signature header in the implementation
-
-Because of that, use HTTPS and an endpoint path that is not publicly advertised.
-
-## Minimal handler
+## Recommended Handler Pattern
 
 ```ts
-export async function handleOffloadWebhook(req: Request) {
-  const event = await req.json();
+export async function POST(request: Request) {
+  const event = await request.json();
 
-  switch (event.event_type) {
-    case "case.completed":
-      // consume event.data.result
-      // use event.data.attachments to look up any inbound files
-      break;
-    case "case.failed":
-      // alert or retry at the product layer
-      break;
-    case "case.input_needed":
-      // store inputRequestId and prompt an operator
-      break;
-  }
+  // 1. Deduplicate by event_id
+  // 2. Persist the full payload
+  // 3. Queue your own downstream work
+  // 4. Return a fast 2xx
 
   return new Response(null, { status: 204 });
 }
 ```
 
-## Best practices
+## Attachment Handling
 
-- Make handlers idempotent using `event_id`.
-- Persist the full payload for audit and debugging.
-- Return a fast `2xx` response and do heavier work asynchronously.
-- If you need to fetch a file, use the attachment id from `event.data.attachments` to request a fresh download link from Offload.
+Webhook payloads include attachment metadata in `data.attachments`, but not a durable file URL.
+
+If you need the file:
+
+1. read `attachmentId` from the webhook payload
+2. call `GET /cases/{id}/attachments/{attachmentId}`
+3. use the returned `downloadUrl` before `expiresAt`
+
+## Metadata Handling
+
+If you passed `metadata` when creating the case, Offload includes it in webhook payloads. This is useful because `GET /cases/{id}` does not currently return `metadata`.
+
+## Reconciliation Strategy
+
+For production use, a reliable pattern is:
+
+1. use webhooks for low-latency updates
+2. store `event_id`
+3. periodically poll active or recently updated cases
+4. repair any missed terminal or input-needed transitions from polling results

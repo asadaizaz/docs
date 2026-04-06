@@ -1,72 +1,63 @@
 ---
 title: "Introduction"
-description: "Offload is the API for asynchronous human coordination."
+description: "Offload is an API for running async, email-based case workflows against a real counterparty."
 ---
 
-Offload lets your product hand off messy, multi-step human follow-up to an API.
+Offload lets your application create a case, hand the outreach loop to Offload, and receive the outcome back as either structured JSON, a failure state, or a request for human input.
 
-You create a case with a goal, the person to contact, and the shape of the result you want back. Offload handles the outreach, follow-ups, reply analysis, and final webhook delivery.
+The implementation in this workspace is queue-driven and email-first:
 
-## What you can automate
+- `POST /cases` stores the case and queues initial processing.
+- A background worker sends the first message, evaluates replies, and schedules follow-ups.
+- Offload emits webhook events only when a case `COMPLETED`, `FAILED`, or moved to `INPUT_NEEDED`.
+- Your app can poll `GET /cases/{id}` at any time and can resume paused work with `POST /cases/{id}/input`.
 
-Offload is a good fit when your backend knows the desired outcome but does not want to manage an inbox, reminder cadence, or thread parsing.
+## What Offload Is Good At
 
-<CardGroup cols={2}>
-  <Card title="Collect documents" icon="file">
-    W-9s, vendor agreements, signed forms, or any paperwork that takes a few follow-ups.
-  </Card>
-  <Card title="Confirm details" icon="check">
-    Appointment times, logistics, account information, invoice updates, or missing onboarding data.
-  </Card>
-  <Card title="Pause for human input" icon="user">
-    If the workflow needs a business decision, Offload pauses and asks your app for more context.
-  </Card>
-  <Card title="Receive structured results" icon="code">
-    When the case is done, your system gets typed JSON instead of raw email text.
-  </Card>
-</CardGroup>
+- Collecting documents or confirmations from a single person or team over email
+- Turning a reply thread into a structured `result`
+- Pausing when a human decision is needed and resuming later
+- Tracking inbound attachments separately from extracted result data
 
-## Core flow
+## What Is Implemented Today
 
-<Steps>
-  <Step title="Create a case">
-    Call `POST /cases` with the goal, counterparty, sender persona, and optional `resultSchema`.
-  </Step>
-  <Step title="Let Offload run the thread">
-    Offload sends the initial outreach, waits for replies, follows up on a schedule, and evaluates each response.
-  </Step>
-  <Step title="Handle webhook events">
-    Your app receives `case.completed`, `case.failed`, or `case.input_needed` as the workflow progresses.
-  </Step>
-  <Step title="Resume if input is needed">
-    When Offload pauses, call `POST /cases/{id}/input` with the `inputRequestId` and the missing context.
-  </Step>
-</Steps>
+- Public routes:
+  - `POST /cases`
+  - `GET /cases/{id}`
+  - `GET /cases/{id}/attachments/{attachmentId}`
+  - `POST /cases/{id}/input`
+- Authentication with the `x-api-key` header
+- Email-thread execution backed by AgentMail
+- Async processing via SQS plus worker-side idempotency
 
-## Start with these pages
+## Important Current Constraints
+
+- The request schema accepts `channel: "SMS"`, but the implemented workflow is email-based. Use `EMAIL`.
+- Webhook delivery is a single HTTP `POST` attempt with no signature header and no application-level retry.
+- `POST /cases` does not support an idempotency key. Repeating the same request creates a new case.
+- When no follow-up is scheduled, `nextActionAt` is currently stored and returned as the sentinel value `253402300799999`.
+
+## Start Here
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Make your first API call and wire up webhook handling.
+    Create a case, receive a webhook, resume input-needed work, and fetch attachments.
   </Card>
-  <Card title="Case lifecycle" icon="map" href="/concepts/lifecycle">
-    Understand statuses, retries, and when a case becomes terminal.
+  <Card title="Cases" icon="folder" href="/concepts/cases">
+    Understand the case object, defaults, counters, and field semantics.
   </Card>
-  <Card title="Result schema" icon="code" href="/guides/result-schema">
-    Learn how to shape the JSON payload you want back.
+  <Card title="Lifecycle" icon="map" href="/concepts/lifecycle">
+    See how cases move between `CREATED`, `RUNNING`, `INPUT_NEEDED`, `COMPLETED`, and `FAILED`.
   </Card>
-  <Card title="Webhook events" icon="terminal" href="/api-reference/webhook-events">
-    See the exact event payloads your backend should expect.
+  <Card title="Webhook Events" icon="terminal" href="/api-reference/webhook-events">
+    Review the exact webhook envelope and delivery behavior.
   </Card>
 </CardGroup>
 
-## Product notes
+## Recommended Reading Order
 
-- Current public workflows are email-first. Use `channel: "EMAIL"` in production requests.
-- API authentication uses the `x-api-key` header on client-facing routes.
-- API keys and billing are managed in the Offload dashboard after you sign in.
-- Current plans are:
-  - `SANDBOX`: free, with `100` created cases per UTC calendar month
-  - `PAYG`: metered billing at `$0.50` per billable finished case, with `100` created cases per UTC calendar month
-  - `BASE_PRO`: `$20/month`, includes `40` free billable finished cases, then `$0.50` per additional billable finished case, with `500` created cases per UTC calendar month
-- The current deployed API base URL in this workspace is `https://2dr03s75sl.execute-api.us-west-2.amazonaws.com`.
+1. [Quickstart](/quickstart)
+2. [Case Lifecycle](/concepts/lifecycle)
+3. [API Introduction](/api-reference/introduction)
+4. [Error Handling](/guides/error-handling)
+5. [Questions / Ambiguities Found](/guides/questions-ambiguities)

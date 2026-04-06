@@ -9,93 +9,141 @@ description: "POST /cases"
 POST /cases
 ```
 
-## Auth
+## Purpose
+
+Creates a case, stores it with `status: "CREATED"`, and queues async processing for the initial outreach.
+
+## Authentication
 
 ```http
 x-api-key: your-api-key
 ```
 
-## Purpose
+## Request Body
 
-Creates a new asynchronous coordination case and starts the workflow.
-
-<Info>
-  Offload currently enforces monthly case caps when you create a case. The current limits are `100` created or billable finished cases per UTC calendar month on `SANDBOX`, `100` on `PAYG`, and `500` on `BASE_PRO`.
-</Info>
-
-<Info>
-  Billable finished cases include completed work and selected terminal failures where Offload actually ran the workflow. Delivery failures such as bounces, complaints, and rejected sends are excluded from the billable finished-case counter.
-</Info>
-
-## Request body
+### Top-Level Fields
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `channel` | `EMAIL \| SMS` | Yes | Use `EMAIL` for current production workflows. |
+| `channel` | `EMAIL \| SMS` | Yes | The schema accepts both values, but the implemented workflow is email-based. Use `EMAIL`. |
 | `goal` | object | Yes | Must include `objective`. |
 | `counterparty` | object | Yes | Must include `address` and `name`. |
 | `senderPersona` | object | Yes | Must include `name`. |
-| `clientReferenceId` | string | No | Your stable ID for mapping the case back to your system. |
-| `constraints` | string[] | No | Hard rules for the workflow. |
-| `maxAttempts` | integer | No | Defaults to `3`. |
-| `followUpDelayHours` | integer | No | Defaults to `72`. |
-| `resultSchema` | object | No | JSON Schema for the final `result`. |
-| `clientWebhookUrl` | string | No | Recommended for event-driven integrations. |
-| `metadata` | object | No | Opaque metadata echoed back in webhooks. |
+| `clientReferenceId` | string | No | Your own identifier for joining Offload cases back to your records. |
+| `constraints` | string[] | No | Free-form instructions passed into the worker prompts. |
+| `maxAttempts` | integer | No | Defaults to `3`. This is the number of automated follow-up attempts after the initial outreach. |
+| `followUpDelayHours` | integer | No | Defaults to `72`. Must be a positive integer. |
+| `resultSchema` | object | No | Expected to be JSON Schema-shaped, but only validated as a generic object. |
+| `clientWebhookUrl` | string | No | Must be a valid URL. Offload sends async events here if present. |
+| `metadata` | object | No | Opaque JSON echoed in webhook payloads. |
 
-## Example request
+### `goal`
 
-```json
-{
-  "clientReferenceId": "property_4421_invoice_march",
-  "channel": "EMAIL",
-  "maxAttempts": 2,
-  "followUpDelayHours": 24,
-  "goal": {
-    "objective": "Get the vendor to send the updated invoice for March landscaping services.",
-    "knowledge": {
-      "invoiceMonth": "March 2026",
-      "vendorName": "GreenLeaf Landscaping",
-      "propertyName": "Maple Grove Apartments",
-      "expectedAmount": "$1,240.00"
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `objective` | string | Yes | Plain-language outcome you want Offload to reach. |
+| `knowledge` | `string \| object` | No | Extra context the worker can use while writing and evaluating messages. |
+
+### `counterparty`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `address` | string | Yes | Current implementation uses this as the email recipient. |
+| `name` | string | Yes | Human-readable name used in the workflow. |
+| `company` | string | No | Optional extra context. |
+| `timezone` | string | No | Optional extra context. |
+| `customData` | object | No | String-to-string map only. |
+
+### `senderPersona`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Sender name used in prompts. |
+| `role` | string | No | Optional role or title. |
+| `company` | string | No | Optional company name. |
+| `tone` | string | No | Optional tone guidance. |
+
+## Example Request
+
+```bash
+curl -X POST "$OFFLOAD_BASE_URL/cases" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $OFFLOAD_API_KEY" \
+  -d '{
+    "clientReferenceId": "vendor_2048",
+    "channel": "EMAIL",
+    "maxAttempts": 3,
+    "followUpDelayHours": 72,
+    "goal": {
+      "objective": "Collect a signed W-9 from the vendor",
+      "knowledge": {
+        "vendorName": "Northstar Supplies",
+        "reason": "AP onboarding"
+      }
+    },
+    "counterparty": {
+      "address": "ap@northstar.example",
+      "name": "Maya Chen",
+      "company": "Northstar Supplies",
+      "timezone": "America/Los_Angeles",
+      "customData": {
+        "vendorId": "vendor_2048"
+      }
+    },
+    "senderPersona": {
+      "name": "Avery",
+      "role": "Accounts Payable",
+      "company": "Example Corp",
+      "tone": "friendly, concise"
+    },
+    "constraints": [
+      "Email only"
+    ],
+    "resultSchema": {
+      "type": "object",
+      "properties": {
+        "signedW9Received": { "type": "boolean" },
+        "receivedAt": { "type": "string" }
+      },
+      "required": ["signedW9Received"]
+    },
+    "clientWebhookUrl": "https://your-app.example/webhooks/offload",
+    "metadata": {
+      "vendorId": "vendor_2048"
     }
-  },
-  "counterparty": {
-    "address": "ap@greenleaf.example",
-    "name": "Jordan Lee",
-    "company": "GreenLeaf Landscaping",
-    "timezone": "America/Los_Angeles"
-  },
-  "senderPersona": {
-    "name": "Melissa",
-    "role": "Accounts Payable Coordinator",
-    "company": "Northstar Property Group",
-    "tone": "professional, clear, polite"
-  },
-  "clientWebhookUrl": "https://your-app.example/webhooks/offload",
-  "metadata": {
-    "portfolio": "west-coast",
-    "propertyId": "property-4421"
-  }
-}
+  }'
 ```
 
-## Example response
+## Successful Response
 
 ```json
 {
   "ok": true,
   "data": {
-    "caseId": "case_123"
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f"
   }
 }
 ```
+
+## What Happens Next
+
+After the API returns `201`:
+
+1. the case exists in storage
+2. an internal `CASE_CREATED` event is queued
+3. the worker later drafts and sends the initial outreach
+4. if that send succeeds, the case moves to `RUNNING`
 
 ## Errors
 
 | Status | Code | Meaning |
 | --- | --- | --- |
-| `400` | `INVALID_REQUEST` | Malformed JSON or failed validation |
+| `400` | `INVALID_REQUEST` | Malformed JSON or validation failure |
 | `401` | `UNAUTHORIZED` | Missing or invalid API key |
-| `429` | `USAGE_LIMIT_REACHED` | Your monthly plan limit for created or billable finished cases has been reached |
-| `500` | `INTERNAL_ERROR` | The case could not be created |
+| `403` | `FORBIDDEN` | API key exists but is not active |
+| `429` | `USAGE_LIMIT_REACHED` | Monthly case cap reached for the current UTC month |
+| `500` | `INTERNAL_ERROR` | Persistence or queueing failed |
+
+<Info>
+  API Gateway also applies route throttling. A platform-generated throttling response may also be `429`, but it may not use the standard JSON envelope.
+</Info>

@@ -1,42 +1,34 @@
 ---
 title: "Quickstart"
-description: "Create your first Offload case and handle the resulting webhook."
+description: "Create your first Offload case, handle webhook events, and resume paused work."
 ---
 
-This guide walks through the shortest useful integration:
+This is the shortest implementation path that matches the current code:
 
 1. create a case
-2. receive webhook events
-3. resume the case if human input is required
+2. store the returned `caseId`
+3. receive `case.completed`, `case.failed`, or `case.input_needed`
+4. resume paused work with `POST /cases/{id}/input`
+5. poll `GET /cases/{id}` or fetch attachments when needed
 
-## Prerequisites
+## 1. Configure Your API Host And Key
 
-- an active API key from the Offload dashboard
-- a public HTTPS endpoint that can receive POST requests from Offload
-- a place to store `caseId` and webhook event data in your app
-
-## 1. Set your base URL and API key
+The codebase does not hardcode a single public hostname. Use the Offload API host for your environment.
 
 ```bash
-export OFFLOAD_BASE_URL="https://2dr03s75sl.execute-api.us-west-2.amazonaws.com"
+export OFFLOAD_BASE_URL="https://<your-offload-api-host>"
 export OFFLOAD_API_KEY="your-api-key"
 ```
 
-<Warning>
-  Use the `x-api-key` header on `POST /cases`, `GET /cases/{id}`, `GET /cases/{id}/attachments/{attachmentId}`, and `POST /cases/{id}/input`.
-</Warning>
+All public routes use the same header:
 
-<Info>
-  `POST /cases` is currently rate-limited by plan usage. `SANDBOX` supports up to `100` created or billable finished cases per UTC calendar month. `PAYG` also supports `100`, and `BASE_PRO` supports `500`.
-</Info>
+```http
+x-api-key: your-api-key
+```
 
-<Info>
-  Billable finished cases include successful completions and selected terminal failures where the workflow genuinely ran. Bounce, rejection, and complaint-style delivery failures are not counted as billable finished usage.
-</Info>
+## 2. Create A Case
 
-## 2. Create a case
-
-This example asks Offload to collect a signed W-9 and return structured data when the task is complete.
+This example asks Offload to collect a signed W-9 over email and return structured output when the case completes.
 
 ```bash
 curl -X POST "$OFFLOAD_BASE_URL/cases" \
@@ -51,36 +43,43 @@ curl -X POST "$OFFLOAD_BASE_URL/cases" \
       "objective": "Collect a signed W-9 from the vendor",
       "knowledge": {
         "vendorName": "Northstar Supplies",
-        "requestReason": "AP onboarding",
-        "dueDate": "2026-04-04"
+        "reason": "AP onboarding",
+        "dueDate": "2026-04-10"
       }
     },
     "counterparty": {
       "address": "ap@northstar.example",
       "name": "Maya Chen",
       "company": "Northstar Supplies",
-      "timezone": "America/Los_Angeles"
+      "timezone": "America/Los_Angeles",
+      "customData": {
+        "vendorId": "vendor_2048"
+      }
     },
     "senderPersona": {
       "name": "Avery",
       "role": "Accounts Payable",
-      "company": "Offload Customer Inc.",
+      "company": "Example Corp",
       "tone": "friendly, concise"
     },
     "constraints": [
       "Email only",
       "Do not mention legal action"
     ],
-      "resultSchema": {
-        "type": "object",
-        "properties": {
-          "signedW9Received": { "type": "boolean" },
-          "taxId": { "type": "string" },
-          "receivedAt": { "type": "string" }
-        },
-        "required": ["signedW9Received"]
+    "resultSchema": {
+      "type": "object",
+      "properties": {
+        "signedW9Received": { "type": "boolean" },
+        "taxId": { "type": "string" },
+        "receivedAt": { "type": "string" }
       },
-    "clientWebhookUrl": "https://your-app.example/webhooks/offload"
+      "required": ["signedW9Received"]
+    },
+    "clientWebhookUrl": "https://your-app.example/webhooks/offload",
+    "metadata": {
+      "vendorId": "vendor_2048",
+      "source": "ap-onboarding"
+    }
   }'
 ```
 
@@ -90,90 +89,135 @@ Successful response:
 {
   "ok": true,
   "data": {
-    "caseId": "case_123"
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f"
   }
 }
 ```
 
-Store `caseId` and map it to your own object using `clientReferenceId` if you have one.
+### Important Notes About Creation
 
-## 3. Receive webhook events
+- `201` means the case was stored and queued. The first outbound email is sent asynchronously.
+- `maxAttempts` is the number of automated follow-up attempts after the initial outreach.
+- `resultSchema` only needs to be an object at API validation time. The API does not fully validate that it is a strict JSON Schema document.
+- Repeating the same `POST /cases` call creates another case. There is no idempotency key on this route.
 
-Configure your webhook endpoint to accept JSON POST requests. Offload currently sends:
+## 3. Create A Case From TypeScript
 
-- `case.completed`
-- `case.failed`
-- `case.input_needed`
+```ts
+const response = await fetch(`${process.env.OFFLOAD_BASE_URL}/cases`, {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    "x-api-key": process.env.OFFLOAD_API_KEY!,
+  },
+  body: JSON.stringify({
+    channel: "EMAIL",
+    goal: {
+      objective: "Collect a signed W-9 from the vendor",
+    },
+    counterparty: {
+      address: "ap@northstar.example",
+      name: "Maya Chen",
+    },
+    senderPersona: {
+      name: "Avery",
+    },
+    clientWebhookUrl: "https://your-app.example/webhooks/offload",
+  }),
+});
 
-Example `case.completed` payload:
+const body = await response.json();
 
-```json
-{
-  "event_id": "evt_case_123_case_completed_1774131900000",
-  "event_type": "case.completed",
-  "timestamp": 1774131900000,
-  "data": {
-    "caseId": "case_123",
-    "clientReferenceId": "vendor_2048",
-    "status": "COMPLETED",
-    "channel": "EMAIL",
-    "attemptCount": 2,
-    "attachments": [
-      {
-        "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
-        "name": "vendor-w9.pdf",
-        "size": 904860,
-        "type": "application/pdf",
-        "messageId": "<message-id@example.com>",
-        "inboxId": "dev-test@agentmail.to",
-        "receivedAt": 1774131900000
-      }
-    ],
-    "resultStatus": "goal_achieved",
-    "result": {
-      "signedW9Received": true,
-      "taxId": "12-3456789",
-      "receivedAt": "2026-03-21T15:42:00Z"
+if (!response.ok || !body.ok) {
+  throw new Error(body.error?.message ?? "Failed to create case");
+}
+
+const caseId: string = body.data.caseId;
+```
+
+## 4. Handle Webhook Events
+
+If you set `clientWebhookUrl`, Offload sends a JSON `POST` when the case:
+
+- completes
+- fails
+- pauses for human input
+
+Example handler:
+
+```ts
+type OffloadWebhookEvent =
+  | {
+      event_type: "case.completed";
+      event_id: string;
+      timestamp: number;
+      data: {
+        caseId: string;
+        resultStatus?: string;
+        result?: Record<string, unknown>;
+        attachments: Array<{ attachmentId: string }>;
+      };
     }
+  | {
+      event_type: "case.failed";
+      event_id: string;
+      timestamp: number;
+      data: {
+        caseId: string;
+        resultStatus?: string;
+        failureReason?: string | null;
+        attachments: Array<{ attachmentId: string }>;
+      };
+    }
+  | {
+      event_type: "case.input_needed";
+      event_id: string;
+      timestamp: number;
+      data: {
+        caseId: string;
+        inputRequest: string | null;
+        inputRequestId: string | null;
+        inputRequestStatus: string | null;
+        attachments: Array<{ attachmentId: string }>;
+      };
+    };
+
+export async function POST(request: Request) {
+  const event = (await request.json()) as OffloadWebhookEvent;
+
+  switch (event.event_type) {
+    case "case.completed":
+      // Persist event_id for dedupe, then consume event.data.result
+      break;
+    case "case.failed":
+      // Persist failure details and decide whether your app should retry manually
+      break;
+    case "case.input_needed":
+      // Store inputRequestId and surface event.data.inputRequest to an operator
+      break;
   }
+
+  return new Response(null, { status: 204 });
 }
 ```
 
-## 4. Handle input-needed cases
+<Warning>
+  The current implementation sends webhooks with `content-type: application/json`, but it does not sign them and it does not retry failed deliveries. Use HTTPS, dedupe on `event_id`, and consider periodic polling reconciliation for important cases.
+</Warning>
 
-Sometimes Offload cannot continue without a business decision or missing context. In that case, you receive `case.input_needed`.
+## 5. Resume A Paused Case
 
-Example:
+When Offload needs a human decision, it sends `case.input_needed` and sets the case to `INPUT_NEEDED`.
 
-```json
-{
-  "event_id": "evt_case_123_case_input_needed_1774131900000",
-  "event_type": "case.input_needed",
-  "timestamp": 1774131900000,
-  "data": {
-    "caseId": "case_123",
-    "clientReferenceId": "vendor_2048",
-    "status": "INPUT_NEEDED",
-    "channel": "EMAIL",
-    "attemptCount": 1,
-    "attachments": [],
-    "inputRequest": "The vendor asked whether they can send the W-9 next Monday. Should I accept that timeline?",
-    "inputRequestId": "input-request-123",
-    "inputRequestStatus": "PENDING",
-    "inputRequestedAt": 1774131900000
-  }
-}
-```
-
-Resume the case:
+Resume the case with the exact `inputRequestId` from the webhook:
 
 ```bash
-curl -X POST "$OFFLOAD_BASE_URL/cases/case_123/input" \
+curl -X POST "$OFFLOAD_BASE_URL/cases/4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f/input" \
   -H "Content-Type: application/json" \
   -H "x-api-key: $OFFLOAD_API_KEY" \
   -d '{
-    "inputRequestId": "input-request-123",
-    "providedContext": "Yes, next Monday is acceptable."
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
+    "providedContext": "Yes, a signed PDF is acceptable. Ask them to send it by Friday."
   }'
 ```
 
@@ -183,31 +227,56 @@ Accepted response:
 {
   "ok": true,
   "data": {
-    "caseId": "case_123",
-    "inputRequestId": "input-request-123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
     "accepted": true
   }
 }
 ```
 
-After the input is accepted, Offload resumes the workflow asynchronously. If the provided context answers the counterparty's question, Offload can send the next reply automatically in the same thread.
+### Important Notes About Input Submission
 
-## 5. Poll if needed
+- `202` means the input was queued, not that the case has already resumed.
+- The handler immediately marks `inputRequestStatus` as `RESOLVED` before the worker processes the queued event.
+- In that short window, `GET /cases/{id}` can still show `status: "INPUT_NEEDED"` together with `inputRequest.status: "RESOLVED"`.
+- There is no webhook for "input accepted" or "case resumed". You only get the next terminal or paused event.
 
-If you want a point-in-time status check, call `GET /cases/{id}`.
+## 6. Poll A Case
+
+Use polling when:
+
+- you did not set `clientWebhookUrl`
+- you want to reconcile missed webhook deliveries
+- you want to fetch the plain-text transcript on demand
 
 ```bash
 curl -H "x-api-key: $OFFLOAD_API_KEY" \
-  "$OFFLOAD_BASE_URL/cases/case_123"
+  "$OFFLOAD_BASE_URL/cases/4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f"
 ```
 
-<Info>
-  `GET /cases/{id}` returns the current case state, any active `inputRequest`, and the top-level `attachments` array. Use `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh file link.
-</Info>
+Fetch the transcript:
 
-## Next steps
+```bash
+curl -H "x-api-key: $OFFLOAD_API_KEY" \
+  "$OFFLOAD_BASE_URL/cases/4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f?includeTranscript=true"
+```
 
-- Read [Case lifecycle](/concepts/lifecycle) to understand status transitions.
-- Read [Result schema](/guides/result-schema) to improve the shape of returned JSON.
-- Read [Webhook events](/api-reference/webhook-events) for the full payload contract.
-- Use the Offload dashboard to create additional API keys, upgrade plans, or manage billing in Stripe.
+`includeTranscript` only enables the transcript when the query value is the literal string `true` after trimming and lowercasing.
+
+## 7. Fetch An Attachment
+
+Webhook events and `GET /cases/{id}` return attachment metadata, not a permanent file URL.
+
+```bash
+curl -H "x-api-key: $OFFLOAD_API_KEY" \
+  "$OFFLOAD_BASE_URL/cases/4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f/attachments/63016fee-124b-46d8-a3e5-616f187a6c41"
+```
+
+The response includes a fresh `downloadUrl` plus an `expiresAt` timestamp. Request the link only when you are ready to fetch the file.
+
+## Next Pages
+
+- [Cases](/concepts/cases)
+- [Case Lifecycle](/concepts/lifecycle)
+- [Webhook Events](/api-reference/webhook-events)
+- [Error Handling](/guides/error-handling)

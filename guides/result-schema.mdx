@@ -1,26 +1,23 @@
 ---
 title: "Result Schema"
-description: "Use JSON Schema to control the structure of completed case results."
+description: "Use resultSchema to shape the JSON returned when a case completes."
 ---
 
-`resultSchema` tells Offload what shape of JSON you want back when the case is successful.
+`resultSchema` tells Offload what structure you want in the final `result` field when a case completes successfully.
 
-Without a schema, Offload can still complete a case, but your downstream system will have less structure to rely on.
+## What The API Validates
 
-<Warning>
-  <strong>⚠️ Do not request file URLs in your resultSchema.</strong>
-  Offload handles attachments separately for security. If a counterparty sends a file, it will automatically appear in the top-level <code>attachments</code> array in your webhook payload. Your <code>resultSchema</code> should only be used to extract text and data.
-</Warning>
+The create-case handler only validates that `resultSchema` is an object.
 
-## Why it matters
+It does not currently validate:
 
-Use `resultSchema` when you want to:
+- whether the object is a complete JSON Schema document
+- whether the schema is internally consistent
+- whether every required field is realistically extractable from the conversation
 
-- trigger product workflows from typed fields
-- reduce manual parsing
-- keep webhook payloads stable across cases
+Use a JSON Schema-shaped object anyway, but treat validation as best-effort prompt guidance rather than strict schema enforcement.
 
-## Example
+## Good Example
 
 ```json
 {
@@ -34,30 +31,39 @@ Use `resultSchema` when you want to:
 }
 ```
 
-## Good schema patterns
+## Good Schema Design Rules
 
-- Prefer flat, explicit fields over vague blobs.
-- Use booleans for yes or no outcomes.
-- Use strings for dates, URLs, and IDs unless your system requires another type.
-- Keep the schema focused on what your app needs after the case completes.
+- Keep the schema focused on data your application will actually use.
+- Prefer explicit booleans and strings over vague free-form blobs.
+- Use optional properties for data that may not always be available.
+- Put workflow instructions in `goal` or `constraints`, not in the schema.
 
-## Example patterns
+## What Not To Put In The Schema
 
-### Document collection
+- attachment download URLs
+- raw file bytes
+- instructions like "follow up twice"
+- fields that can only be known from internal business systems
+
+Attachments already flow through the top-level `attachments` array.
+
+## Useful Patterns
+
+### Document Collection
 
 ```json
 {
   "type": "object",
   "properties": {
     "received": { "type": "boolean" },
-    "receivedAt": { "type": "string" },
-    "documentType": { "type": "string" }
+    "documentType": { "type": "string" },
+    "receivedAt": { "type": "string" }
   },
   "required": ["received"]
 }
 ```
 
-### Scheduling
+### Scheduling Confirmation
 
 ```json
 {
@@ -65,13 +71,13 @@ Use `resultSchema` when you want to:
   "properties": {
     "confirmed": { "type": "boolean" },
     "scheduledTime": { "type": "string" },
-    "meetingLink": { "type": "string" }
+    "timezone": { "type": "string" }
   },
   "required": ["confirmed"]
 }
 ```
 
-### Invoice follow-up
+### Invoice Follow-Up
 
 ```json
 {
@@ -85,9 +91,9 @@ Use `resultSchema` when you want to:
 }
 ```
 
-## Practical guidance
+## Practical Advice
 
-- Do not encode instructions in the schema. Put those in `goal`, `knowledge`, and `constraints`.
-- Do not request attachment links or file URLs in the schema. Use the top-level `attachments` array instead.
-- Do not require fields that may be impossible to confirm from the conversation.
-- If your workflow can end in multiple valid shapes, use nullable or optional properties instead of over-constraining the result.
+- Start with a small schema.
+- Add fields only when you can act on them downstream.
+- Expect `result` to be absent until the case reaches `COMPLETED`.
+- Be prepared for schema-shaped output quality to depend on the conversation quality and the clarity of your requested fields.

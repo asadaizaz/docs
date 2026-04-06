@@ -9,43 +9,74 @@ description: "GET /cases/{id}"
 GET /cases/{id}
 ```
 
-## Auth
+## Purpose
+
+Returns the current public state of a case owned by the authenticated client.
+
+## Authentication
 
 ```http
 x-api-key: your-api-key
 ```
 
-## Purpose
-
-Returns the current public state of a case owned by the authenticated client.
-
-## Path parameters
+## Path Parameters
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `id` | string | Yes | The case ID returned by `POST /cases`. |
 
-## Query parameters
+## Query Parameters
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `includeTranscript` | boolean | No | Set to `true` to fetch the full case email transcript from AgentMail and include it as `conversationThread`. |
+| `includeTranscript` | string | No | When the value is the literal string `true`, Offload fetches the tracked AgentMail thread and includes `conversationThread`. |
 
-Use `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh download link for a file listed in `attachments`.
+## Returned Fields
 
-## Example response
+| Field | Notes |
+| --- | --- |
+| `caseId` | Offload case ID |
+| `clientReferenceId` | Present when provided at creation time |
+| `status` | Current case status |
+| `createdAt` | Unix timestamp in milliseconds |
+| `updatedAt` | Unix timestamp in milliseconds |
+| `nextActionAt` | Scheduled timestamp, or the unscheduled sentinel `253402300799999` |
+| `attemptCount` | Number of outbound messages sent so far |
+| `maxAttempts` | Maximum follow-up attempts after the initial outreach |
+| `channel` | Current schema allows `EMAIL` or `SMS`, but production workflow is email-based |
+| `counterparty` | Public counterparty object |
+| `attachments` | Inbound attachment metadata only |
+| `resultStatus` | Open string for workflow outcome |
+| `result` | Present when the case has structured output |
+| `goal` | Original goal object |
+| `resultSchema` | Present if provided at creation time |
+| `senderPersona` | Original sender persona |
+| `constraints` | Present if provided at creation time |
+| `inputRequest` | `null` or `{ id, question, status, requestedAt }` |
+| `conversationThread` | Only included when `includeTranscript=true` |
+
+## Important Omissions
+
+`GET /cases/{id}` does not currently return:
+
+- `metadata`
+- `failureReason`
+- `clientWebhookUrl`
+- internal scheduling fields like `nextActionType`
+
+## Example Response
 
 ```json
 {
   "ok": true,
   "data": {
-    "caseId": "case_123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
     "clientReferenceId": "vendor_2048",
-    "status": "COMPLETED",
+    "status": "INPUT_NEEDED",
     "createdAt": 1774131000000,
-    "updatedAt": 1774131900000,
-    "nextActionAt": 253402300799000,
-    "attemptCount": 2,
+    "updatedAt": 1774131900300,
+    "nextActionAt": 253402300799999,
+    "attemptCount": 1,
     "maxAttempts": 3,
     "channel": "EMAIL",
     "counterparty": {
@@ -54,23 +85,7 @@ Use `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh download 
       "company": "Northstar Supplies",
       "timezone": "America/Los_Angeles"
     },
-    "attachments": [
-      {
-        "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
-        "name": "vendor-w9.pdf",
-        "size": 904860,
-        "type": "application/pdf",
-        "messageId": "<message-id@example.com>",
-        "inboxId": "dev-test@agentmail.to",
-        "receivedAt": 1774131900000
-      }
-    ],
-    "resultStatus": "goal_achieved",
-    "result": {
-      "signedW9Received": true,
-      "taxId": "12-3456789",
-      "receivedAt": "2026-03-21T15:42:00Z"
-    },
+    "attachments": [],
     "goal": {
       "objective": "Collect a signed W-9 from the vendor"
     },
@@ -82,12 +97,17 @@ Use `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh download 
       "role": "Accounts Payable"
     },
     "constraints": ["Email only"],
-    "inputRequest": null
+    "inputRequest": {
+      "id": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
+      "question": "The vendor asked whether a signed PDF is acceptable. How should I respond?",
+      "status": "PENDING",
+      "requestedAt": 1774131900300
+    }
   }
 }
 ```
 
-## Example response with transcript
+## Example Response With Transcript
 
 Request:
 
@@ -95,71 +115,17 @@ Request:
 GET /cases/{id}?includeTranscript=true
 ```
 
+Response:
+
 ```json
 {
   "ok": true,
   "data": {
-    "caseId": "case_123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
     "status": "RUNNING",
     "createdAt": 1774131000000,
     "updatedAt": 1774131900000,
-    "attemptCount": 2,
-    "maxAttempts": 3,
-    "channel": "EMAIL",
-    "counterparty": {
-      "address": "ap@northstar.example",
-      "name": "Maya Chen"
-    },
-    "attachments": [
-      {
-        "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
-        "name": "vendor-w9.pdf",
-        "size": 904860,
-        "type": "application/pdf",
-        "messageId": "<message-id@example.com>",
-        "inboxId": "dev-test@agentmail.to",
-        "receivedAt": 1774131900000
-      }
-    ],
-    "goal": {
-      "objective": "Collect a signed W-9 from the vendor"
-    },
-    "senderPersona": {
-      "name": "Avery"
-    },
-    "inputRequest": null,
-    "conversationThread": "From: Avery <avery@agentmail.to>\nTimestamp: 2026-03-20T18:10:00.000Z\nMessage: Hi Maya, could you send the signed W-9?\n\n---\n\nFrom: Maya Chen <ap@northstar.example>\nTimestamp: 2026-03-21T15:42:00.000Z\nMessage: Attached here."
-  }
-}
-```
-
-## Returned fields
-
-This endpoint returns:
-
-- case identity and timestamps
-- current `status`
-- retry state like `attemptCount` and `maxAttempts`
-- counterparty, goal, sender persona, and constraints
-- `attachments` as the list of inbound files seen on the case
-- `resultStatus` and `result` when available
-- `inputRequest` as either `null` or an object with `id`, `question`, `status`, and `requestedAt`
-- `conversationThread` only when you request `includeTranscript=true`
-
-When a case is in `INPUT_NEEDED`, `inputRequest` includes the active question the case is waiting on.
-
-If you request `includeTranscript=true`, Offload fetches the current email thread from AgentMail at read time. If the case does not yet have an email thread, `conversationThread` is returned as `null`. When `includeTranscript` is omitted, `conversationThread` is omitted from the response.
-
-Attachment download links are not stored directly on the case because the underlying AgentMail URLs expire. Use `GET /cases/{id}/attachments/{attachmentId}` to mint a fresh link when needed.
-
-```json
-{
-  "ok": true,
-  "data": {
-    "caseId": "case_123",
-    "status": "INPUT_NEEDED",
-    "createdAt": 1774131000000,
-    "updatedAt": 1774131900000,
+    "nextActionAt": 1774387500000,
     "attemptCount": 2,
     "maxAttempts": 3,
     "channel": "EMAIL",
@@ -174,15 +140,17 @@ Attachment download links are not stored directly on the case because the underl
     "senderPersona": {
       "name": "Avery"
     },
-    "inputRequest": {
-      "id": "inputreq_123",
-      "question": "Can we accept a digital signature for this vendor?",
-      "status": "PENDING",
-      "requestedAt": 1774131900000
-    }
+    "inputRequest": null,
+    "conversationThread": "From: Avery <avery@agentmail.to>\nTimestamp: 2026-03-20T18:10:00.000Z\nMessage: Hi Maya, could you send the signed W-9?\n\n---\n\nFrom: Maya Chen <ap@northstar.example>\nTimestamp: 2026-03-21T15:42:00.000Z\nMessage: Attached here."
   }
 }
 ```
+
+`conversationThread` is formatted plain text, not an array of structured messages.
+
+## Attachment Downloads
+
+Use `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh `downloadUrl`.
 
 ## Errors
 
@@ -190,5 +158,9 @@ Attachment download links are not stored directly on the case because the underl
 | --- | --- | --- |
 | `400` | `INVALID_REQUEST` | Missing case ID |
 | `401` | `UNAUTHORIZED` | Missing or invalid API key |
-| `403` | `FORBIDDEN` | The case belongs to another client |
+| `403` | `FORBIDDEN` | Inactive API key or case belongs to another user |
 | `404` | `CASE_NOT_FOUND` | No case exists for that ID |
+
+<Info>
+  If `includeTranscript=true` and the live AgentMail fetch fails, the current implementation may return a generic platform `500` instead of the standard JSON error envelope.
+</Info>

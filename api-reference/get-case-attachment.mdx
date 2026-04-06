@@ -9,26 +9,31 @@ description: "GET /cases/{id}/attachments/{attachmentId}"
 GET /cases/{id}/attachments/{attachmentId}
 ```
 
-## Auth
+## Purpose
+
+Returns a fresh AgentMail download link for an attachment already stored on the case.
+
+## Authentication
 
 ```http
 x-api-key: your-api-key
 ```
 
-## Purpose
-
-Returns a fresh AgentMail download link for one attachment previously received on the case.
-
-Use the top-level `attachments` array from `GET /cases/{id}` or `case.completed` webhooks to discover valid `attachmentId` values first.
-
-## Path parameters
+## Path Parameters
 
 | Parameter | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `id` | string | Yes | The case ID returned by `POST /cases`. |
-| `attachmentId` | string | Yes | The attachment ID from the case `attachments` array. |
+| `id` | string | Yes | Case ID |
+| `attachmentId` | string | Yes | Attachment ID from `attachments` on the case or webhook payload |
 
-## Example response
+## Example Request
+
+```bash
+curl -H "x-api-key: $OFFLOAD_API_KEY" \
+  "$OFFLOAD_BASE_URL/cases/4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f/attachments/63016fee-124b-46d8-a3e5-616f187a6c41"
+```
+
+## Example Response
 
 ```json
 {
@@ -49,9 +54,9 @@ Use the top-level `attachments` array from `GET /cases/{id}` or `case.completed`
 
 ## Notes
 
-- `downloadUrl` is temporary and may expire quickly.
-- Request a new link when you actually need to fetch the file.
-- Offload does not inspect attachment contents in this version.
+- `downloadUrl` is temporary.
+- `expiresAt` is an ISO 8601 timestamp.
+- Request the file URL only when you are ready to fetch the file.
 
 ## Errors
 
@@ -59,6 +64,7 @@ Use the top-level `attachments` array from `GET /cases/{id}` or `case.completed`
 | --- | --- | --- |
 | `400` | `INVALID_REQUEST` | Missing case ID or attachment ID |
 | `401` | `UNAUTHORIZED` | Missing or invalid API key |
-| `403` | `FORBIDDEN` | The case belongs to another client |
+| `403` | `FORBIDDEN` | Inactive API key or case belongs to another user |
 | `404` | `CASE_NOT_FOUND` | No case exists for that ID |
-| `404` | `ATTACHMENT_NOT_FOUND` | The case does not have that attachment |
+| `404` | `ATTACHMENT_NOT_FOUND` | Attachment is not stored on the case |
+| `500` | `INTERNAL_ERROR` | Attachment lookup against AgentMail failed |

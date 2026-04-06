@@ -1,40 +1,46 @@
 ---
 title: "Webhook Events"
-description: "Outbound events delivered to your clientWebhookUrl."
+description: "Outbound case events sent to clientWebhookUrl."
 ---
 
-## Delivery contract
+## Delivery Contract
 
-When `clientWebhookUrl` is set, Offload sends JSON POST requests to that URL for terminal or paused states.
-
-Headers:
+When `clientWebhookUrl` is present on a case, Offload sends:
 
 ```http
+POST <clientWebhookUrl>
 content-type: application/json
 ```
 
-## Common envelope
+The current implementation:
+
+- sends only one request per event
+- treats any `2xx` as success
+- does not sign events
+- does not retry failures
+
+## Common Envelope
 
 ```json
 {
-  "event_id": "evt_case_123_case_completed_1774131900000",
+  "event_id": "evt_4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f_case_completed_1774131900000",
   "event_type": "case.completed",
   "timestamp": 1774131900000,
   "data": {}
 }
 ```
 
-## Event types
+## Event Types
 
 ### `case.completed`
 
-Sent when a case reaches `COMPLETED`.
+Sent when the case becomes `COMPLETED`.
 
 ```json
 {
   "event_type": "case.completed",
   "data": {
-    "caseId": "case_123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
     "clientReferenceId": "vendor_2048",
     "status": "COMPLETED",
     "channel": "EMAIL",
@@ -53,8 +59,10 @@ Sent when a case reaches `COMPLETED`.
     "resultStatus": "goal_achieved",
     "result": {
       "signedW9Received": true,
-      "taxId": "12-3456789",
       "receivedAt": "2026-03-21T15:42:00Z"
+    },
+    "metadata": {
+      "vendorId": "vendor_2048"
     }
   }
 }
@@ -62,68 +70,75 @@ Sent when a case reaches `COMPLETED`.
 
 ### `case.failed`
 
-Sent when the workflow cannot complete.
+Sent when the case becomes `FAILED`.
 
 ```json
 {
   "event_type": "case.failed",
   "data": {
-    "caseId": "case_123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
     "status": "FAILED",
     "channel": "EMAIL",
     "attemptCount": 3,
     "attachments": [],
     "resultStatus": "max_retries",
-    "failureReason": "Maximum follow-up attempts reached."
+    "failureReason": null
   }
 }
 ```
 
-`case.failed` is an operational state, not a billing classification. Some failed outcomes still count as billable finished usage, while bounce, complaint, and rejected-send failures do not.
+Known `resultStatus` values include:
+
+- `max_retries`
+- `failed_rejected`
+- `BOUNCED`
+- `COMPLAINED`
+- `REJECTED`
 
 ### `case.input_needed`
 
-Sent when Offload needs a decision from your app before continuing.
+Sent when the worker pauses the case and needs your input.
 
 ```json
 {
   "event_type": "case.input_needed",
   "data": {
-    "caseId": "case_123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
     "status": "INPUT_NEEDED",
     "channel": "EMAIL",
     "attemptCount": 1,
     "attachments": [],
-    "inputRequest": "The counterparty asked whether a Tuesday deadline is acceptable.",
-    "inputRequestId": "input-request-123",
+    "inputRequest": "The vendor asked whether a signed PDF is acceptable. How should I respond?",
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
     "inputRequestStatus": "PENDING",
-    "inputRequestedAt": 1774131900000
+    "inputRequestedAt": 1774131900300
   }
 }
 ```
 
-## Fields in `data`
+## Fields In `data`
 
 | Field | Present when |
 | --- | --- |
 | `caseId` | Always |
-| `clientReferenceId` | When you provided one at creation time |
+| `clientReferenceId` | When provided at case creation |
 | `status` | Always |
 | `channel` | Always |
 | `attemptCount` | Always |
-| `attachments` | Always, as an array of inbound file refs |
+| `attachments` | Always |
 | `result` | Usually on `case.completed` |
-| `resultStatus` | On terminal states and some workflow outcomes |
-| `failureReason` | On `case.failed` |
-| `inputRequest` | On `case.input_needed` |
-| `inputRequestId` | On `case.input_needed` |
-| `inputRequestStatus` | On `case.input_needed` |
-| `inputRequestedAt` | On `case.input_needed` |
-| `metadata` | When metadata was attached to the case |
+| `metadata` | When provided at case creation |
+| `resultStatus` | Terminal and workflow outcome cases |
+| `failureReason` | Some `case.failed` events |
+| `inputRequest` | `case.input_needed` |
+| `inputRequestId` | `case.input_needed` |
+| `inputRequestStatus` | `case.input_needed` |
+| `inputRequestedAt` | `case.input_needed` |
 
-## Handling advice
+## Handling Advice
 
-- Deduplicate by `event_id`.
-- Expect retries from the platform layer and keep handlers idempotent.
-- Persist `case.input_needed` payloads so you retain the active `inputRequestId`.
-- Use `attachments` plus `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh file link.
+- Deduplicate on `event_id`.
+- Persist the full payload.
+- Return a fast `2xx`.
+- Use the attachments endpoint when you need a fresh file URL.
+- Poll important cases for reconciliation because failed webhooks are not retried.

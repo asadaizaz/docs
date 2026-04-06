@@ -1,0 +1,18 @@
+---
+title: "Questions / Ambiguities Found"
+description: "Implementation-grounded gaps, inconsistencies, and behaviors that should be clarified or fixed."
+---
+
+## Questions / Ambiguities Found
+
+- `channel: "SMS"` is accepted by request validation, but the implemented workflow sends and reads from AgentMail email threads. `REQUIRES_REPLY` explicitly throws for non-email channels. This looks like a contract gap.
+- `maxAttempts` is described in the data model as follow-up attempts, while many readers would assume it means total attempts. The worker logic confirms it only caps follow-ups after the initial outreach.
+- `nextActionAt` uses the sentinel `253402300799999` for "unscheduled" states. That value is returned by `GET /cases/{id}`, which is technically accurate but awkward for API consumers expecting `null`.
+- `resultStatus` is typed as an open string and the implementation mixes lowercase workflow values like `goal_achieved` with uppercase provider-delivery values like `BOUNCED` and `REJECTED`.
+- `resultSchema` is documented as JSON Schema, but the API only validates that it is an object. Invalid or partial schemas are accepted.
+- Webhook delivery has no signature, no custom auth headers, and no retry loop. Failed deliveries are logged and dropped.
+- `GET /cases/{id}` omits `metadata`, even though `metadata` is accepted at creation time and echoed in webhook payloads.
+- `GET /cases/{id}` with `includeTranscript=true` depends on a live AgentMail fetch, and the handler does not catch transcript-fetch errors locally. A provider failure may surface as a generic platform `500`.
+- `POST /cases/{id}/input` sets `inputRequestStatus` to `RESOLVED` before the worker finishes processing the answer. During that window, the case can still read as `INPUT_NEEDED`.
+- The worker only treats inbound AgentMail events as replies when reply headers are present. A non-reply inbound email is ignored even if it relates to the same case.
+- `agentMailInboxId` is currently hardcoded to `dev-test@agentmail.to` when a case is created. That value also appears in attachment metadata returned to clients. This looks like environment-specific implementation leakage.

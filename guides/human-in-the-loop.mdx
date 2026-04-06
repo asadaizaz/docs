@@ -1,18 +1,13 @@
 ---
 title: "Human In The Loop"
-description: "How to resume a case when Offload pauses for input."
+description: "How Offload pauses for input, what your app receives, and how to resume safely."
 ---
 
-Offload pauses a case when it cannot proceed safely without your answer.
+Offload moves a case to `INPUT_NEEDED` when the worker decides it cannot continue safely without a human answer from your application.
 
-That state appears as:
+## What You Receive
 
-- case status `INPUT_NEEDED`
-- webhook event `case.input_needed`
-
-## What you receive
-
-When a case pauses, Offload sends a webhook containing:
+If `clientWebhookUrl` is configured, you receive `case.input_needed` with:
 
 - `inputRequest`
 - `inputRequestId`
@@ -23,51 +18,89 @@ Example:
 
 ```json
 {
+  "event_id": "evt_4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f_case_input_needed_1774131900300",
   "event_type": "case.input_needed",
+  "timestamp": 1774131900300,
   "data": {
-    "caseId": "case_123",
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
+    "clientReferenceId": "vendor_2048",
     "status": "INPUT_NEEDED",
-    "inputRequest": "The vendor asked if you can accept delivery on Tuesday instead of Monday.",
-    "inputRequestId": "input-request-123",
-    "inputRequestStatus": "PENDING"
+    "channel": "EMAIL",
+    "attemptCount": 1,
+    "attachments": [],
+    "inputRequest": "The vendor asked whether a signed PDF is acceptable. How should I respond?",
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
+    "inputRequestStatus": "PENDING",
+    "inputRequestedAt": 1774131900300
   }
 }
 ```
 
-## How to resume
+You can also fetch the same active question from `GET /cases/{id}` while the request is still present on the case.
 
-Call `POST /cases/{id}/input` with the exact `inputRequestId` from the webhook and the context you want Offload to use.
+## Resume The Case
+
+Submit the answer with the same `inputRequestId`:
 
 ```bash
-curl -X POST "$OFFLOAD_BASE_URL/cases/case_123/input" \
+curl -X POST "$OFFLOAD_BASE_URL/cases/4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f/input" \
   -H "Content-Type: application/json" \
   -H "x-api-key: $OFFLOAD_API_KEY" \
   -d '{
-    "inputRequestId": "input-request-123",
-    "providedContext": "Tuesday works. Confirm that they should send the document before 5 PM PT."
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
+    "providedContext": "Yes. Signed PDFs are acceptable. Ask them to send it before Friday at 5 PM PT."
   }'
 ```
 
-## Important constraints
+Successful acceptance:
 
-- The case must currently be in `INPUT_NEEDED`.
-- The request must still be `PENDING`.
-- The `inputRequestId` must match the active request exactly.
+```json
+{
+  "ok": true,
+  "data": {
+    "caseId": "4fc5904d-0e44-4ed3-aa57-c4a47ad0ae4f",
+    "inputRequestId": "c8c6a7ca-a913-4d13-8cd8-5887efb0531c",
+    "accepted": true
+  }
+}
+```
 
-If any of those conditions fail, the API returns `409`.
+## What `202 Accepted` Means
 
-## Recommended app behavior
+The current implementation performs two steps:
+
+1. enqueue an internal `INPUT_PROVIDED` event
+2. immediately update `inputRequestStatus` to `RESOLVED`
+
+That means:
+
+- your answer was accepted for async processing
+- the case may still briefly read as `INPUT_NEEDED`
+- the worker has not necessarily replied to the counterparty yet
+
+## When The API Returns `409`
+
+`POST /cases/{id}/input` returns `409` when:
+
+- the case is not currently `INPUT_NEEDED`
+- the active request is no longer `PENDING`
+- the provided `inputRequestId` is stale or mismatched
+
+## Recommended App Behavior
 
 - Persist `inputRequestId` from the webhook.
-- Show `inputRequest` to the operator or business workflow that can answer it.
-- Keep the answer concise and decision-oriented.
-- Treat `202 Accepted` as asynchronous acceptance, not immediate completion.
+- Show `inputRequest` to the human or system that can answer it.
+- Keep `providedContext` direct and decision-oriented.
+- Treat `202` as queued work, not a final state transition.
+- Watch for the next webhook or poll the case to confirm the new state.
 
-## What happens next
+## What Happens Next
 
-After your input is accepted:
+After the worker processes your answer, it can:
 
-- Offload records the answer in the case context
-- the workflow is re-evaluated
-- if Offload can now answer the counterparty, it sends the next reply in the existing thread automatically
-- the case may return to `RUNNING`, `COMPLETED`, `FAILED`, or request more input later
+- send the next reply and return to `RUNNING`
+- complete the case
+- fail the case
+- ask for more input again
+
+When the answer is added, the worker appends it into `goal.knowledge.additionalHumanContext` before re-evaluating the case.
