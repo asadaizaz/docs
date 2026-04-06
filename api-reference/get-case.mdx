@@ -31,6 +31,8 @@ Returns the current public state of a case owned by the authenticated client.
 | --- | --- | --- | --- |
 | `includeTranscript` | boolean | No | Set to `true` to fetch the full case email transcript from AgentMail and include it as `conversationThread`. |
 
+Use `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh download link for a file listed in `attachments`.
+
 ## Example response
 
 ```json
@@ -52,11 +54,22 @@ Returns the current public state of a case owned by the authenticated client.
       "company": "Northstar Supplies",
       "timezone": "America/Los_Angeles"
     },
+    "attachments": [
+      {
+        "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
+        "name": "vendor-w9.pdf",
+        "size": 904860,
+        "type": "application/pdf",
+        "messageId": "<message-id@example.com>",
+        "inboxId": "dev-test@agentmail.to",
+        "receivedAt": 1774131900000
+      }
+    ],
     "resultStatus": "goal_achieved",
     "result": {
       "signedW9Received": true,
       "taxId": "12-3456789",
-      "documentUrl": "https://files.example.com/w9.pdf"
+      "receivedAt": "2026-03-21T15:42:00Z"
     },
     "goal": {
       "objective": "Collect a signed W-9 from the vendor"
@@ -97,6 +110,17 @@ GET /cases/{id}?includeTranscript=true
       "address": "ap@northstar.example",
       "name": "Maya Chen"
     },
+    "attachments": [
+      {
+        "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
+        "name": "vendor-w9.pdf",
+        "size": 904860,
+        "type": "application/pdf",
+        "messageId": "<message-id@example.com>",
+        "inboxId": "dev-test@agentmail.to",
+        "receivedAt": 1774131900000
+      }
+    ],
     "goal": {
       "objective": "Collect a signed W-9 from the vendor"
     },
@@ -117,6 +141,7 @@ This endpoint returns:
 - current `status`
 - retry state like `attemptCount` and `maxAttempts`
 - counterparty, goal, sender persona, and constraints
+- `attachments` as the list of inbound files seen on the case
 - `resultStatus` and `result` when available
 - `inputRequest` as either `null` or an object with `id`, `question`, `status`, and `requestedAt`
 - `conversationThread` only when you request `includeTranscript=true`
@@ -124,6 +149,8 @@ This endpoint returns:
 When a case is in `INPUT_NEEDED`, `inputRequest` includes the active question the case is waiting on.
 
 If you request `includeTranscript=true`, Offload fetches the current email thread from AgentMail at read time. If the case does not yet have an email thread, `conversationThread` is returned as `null`. When `includeTranscript` is omitted, `conversationThread` is omitted from the response.
+
+Attachment download links are not stored directly on the case because the underlying AgentMail URLs expire. Use `GET /cases/{id}/attachments/{attachmentId}` to mint a fresh link when needed.
 
 ```json
 {
@@ -140,6 +167,7 @@ If you request `includeTranscript=true`, Offload fetches the current email threa
       "address": "ap@northstar.example",
       "name": "Maya Chen"
     },
+    "attachments": [],
     "goal": {
       "objective": "Collect a signed W-9 from the vendor"
     },

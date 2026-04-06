@@ -39,11 +39,22 @@ Sent when a case reaches `COMPLETED`.
     "status": "COMPLETED",
     "channel": "EMAIL",
     "attemptCount": 2,
+    "attachments": [
+      {
+        "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
+        "name": "vendor-w9.pdf",
+        "size": 904860,
+        "type": "application/pdf",
+        "messageId": "<message-id@example.com>",
+        "inboxId": "dev-test@agentmail.to",
+        "receivedAt": 1774131900000
+      }
+    ],
     "resultStatus": "goal_achieved",
     "result": {
       "signedW9Received": true,
       "taxId": "12-3456789",
-      "documentUrl": "https://files.example.com/w9.pdf"
+      "receivedAt": "2026-03-21T15:42:00Z"
     }
   }
 }
@@ -61,11 +72,14 @@ Sent when the workflow cannot complete.
     "status": "FAILED",
     "channel": "EMAIL",
     "attemptCount": 3,
+    "attachments": [],
     "resultStatus": "max_retries",
     "failureReason": "Maximum follow-up attempts reached."
   }
 }
 ```
+
+`case.failed` is an operational state, not a billing classification. Some failed outcomes still count as billable finished usage, while bounce, complaint, and rejected-send failures do not.
 
 ### `case.input_needed`
 
@@ -79,6 +93,7 @@ Sent when Offload needs a decision from your app before continuing.
     "status": "INPUT_NEEDED",
     "channel": "EMAIL",
     "attemptCount": 1,
+    "attachments": [],
     "inputRequest": "The counterparty asked whether a Tuesday deadline is acceptable.",
     "inputRequestId": "input-request-123",
     "inputRequestStatus": "PENDING",
@@ -96,6 +111,7 @@ Sent when Offload needs a decision from your app before continuing.
 | `status` | Always |
 | `channel` | Always |
 | `attemptCount` | Always |
+| `attachments` | Always, as an array of inbound file refs |
 | `result` | Usually on `case.completed` |
 | `resultStatus` | On terminal states and some workflow outcomes |
 | `failureReason` | On `case.failed` |
@@ -110,3 +126,4 @@ Sent when Offload needs a decision from your app before continuing.
 - Deduplicate by `event_id`.
 - Expect retries from the platform layer and keep handlers idempotent.
 - Persist `case.input_needed` payloads so you retain the active `inputRequestId`.
+- Use `attachments` plus `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh file link.

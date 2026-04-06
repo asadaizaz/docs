@@ -64,4 +64,9 @@ Offload is a good fit when your backend knows the desired outcome but does not w
 
 - Current public workflows are email-first. Use `channel: "EMAIL"` in production requests.
 - API authentication uses the `x-api-key` header on client-facing routes.
+- API keys and billing are managed in the Offload dashboard after you sign in.
+- Current plans are:
+  - `SANDBOX`: free, with `100` created cases per UTC calendar month
+  - `PAYG`: metered billing at `$0.50` per billable finished case, with `100` created cases per UTC calendar month
+  - `BASE_PRO`: `$20/month`, includes `40` free billable finished cases, then `$0.50` per additional billable finished case, with `500` created cases per UTC calendar month
 - The current deployed API base URL in this workspace is `https://2dr03s75sl.execute-api.us-west-2.amazonaws.com`.

@@ -60,6 +60,8 @@ Inspect:
 - `resultStatus`
 - `failureReason`
 
+Not every `FAILED` case is billable usage. In the current product, delivery failures such as bounces, complaints, and rejected sends are excluded from billable finished-case counts.
+
 ## Human-in-the-loop behavior
 
 When Offload needs a decision, it emits `case.input_needed` and pauses the workflow.

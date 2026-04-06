@@ -32,6 +32,7 @@ Every webhook includes:
 - `clientReferenceId`
 - `status`
 - `attemptCount`
+- `attachments`
 - `result`
 - `resultStatus`
 - `failureReason`
@@ -57,6 +58,7 @@ export async function handleOffloadWebhook(req: Request) {
   switch (event.event_type) {
     case "case.completed":
       // consume event.data.result
+      // use event.data.attachments to look up any inbound files
       break;
     case "case.failed":
       // alert or retry at the product layer
@@ -75,3 +77,4 @@ export async function handleOffloadWebhook(req: Request) {
 - Make handlers idempotent using `event_id`.
 - Persist the full payload for audit and debugging.
 - Return a fast `2xx` response and do heavier work asynchronously.
+- If you need to fetch a file, use the attachment id from `event.data.attachments` to request a fresh download link from Offload.

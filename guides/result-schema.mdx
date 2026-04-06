@@ -7,6 +7,11 @@ description: "Use JSON Schema to control the structure of completed case results
 
 Without a schema, Offload can still complete a case, but your downstream system will have less structure to rely on.
 
+<Warning>
+  <strong>⚠️ Do not request file URLs in your resultSchema.</strong>
+  Offload handles attachments separately for security. If a counterparty sends a file, it will automatically appear in the top-level <code>attachments</code> array in your webhook payload. Your <code>resultSchema</code> should only be used to extract text and data.
+</Warning>
+
 ## Why it matters
 
 Use `resultSchema` when you want to:
@@ -23,7 +28,7 @@ Use `resultSchema` when you want to:
   "properties": {
     "signedW9Received": { "type": "boolean" },
     "taxId": { "type": "string" },
-    "documentUrl": { "type": "string" }
+    "receivedAt": { "type": "string" }
   },
   "required": ["signedW9Received"]
 }
@@ -46,7 +51,7 @@ Use `resultSchema` when you want to:
   "properties": {
     "received": { "type": "boolean" },
     "receivedAt": { "type": "string" },
-    "documentUrl": { "type": "string" }
+    "documentType": { "type": "string" }
   },
   "required": ["received"]
 }
@@ -83,5 +88,6 @@ Use `resultSchema` when you want to:
 ## Practical guidance
 
 - Do not encode instructions in the schema. Put those in `goal`, `knowledge`, and `constraints`.
+- Do not request attachment links or file URLs in the schema. Use the top-level `attachments` array instead.
 - Do not require fields that may be impossible to confirm from the conversation.
 - If your workflow can end in multiple valid shapes, use nullable or optional properties instead of over-constraining the result.

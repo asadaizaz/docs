@@ -51,6 +51,7 @@
             "pages": [
               "api-reference/create-case",
               "api-reference/get-case",
+              "api-reference/get-case-attachment",
               "api-reference/provide-case-input",
               "api-reference/webhook-events"
             ]

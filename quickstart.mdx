@@ -11,7 +11,7 @@ This guide walks through the shortest useful integration:
 
 ## Prerequisites
 
-- an active API key
+- an active API key from the Offload dashboard
 - a public HTTPS endpoint that can receive POST requests from Offload
 - a place to store `caseId` and webhook event data in your app
 
@@ -23,11 +23,15 @@ export OFFLOAD_API_KEY="your-api-key"
 ```
 
 <Warning>
-  Use the `x-api-key` header on `POST /cases`, `GET /cases/{id}`, and `POST /cases/{id}/input`.
+  Use the `x-api-key` header on `POST /cases`, `GET /cases/{id}`, `GET /cases/{id}/attachments/{attachmentId}`, and `POST /cases/{id}/input`.
 </Warning>
 
 <Info>
-  `POST /cases` is currently rate-limited by plan usage. `SANDBOX` supports up to `100` created or finished cases per UTC calendar month. `PRODUCTION` currently has a `2500` case soft cap per UTC calendar month.
+  `POST /cases` is currently rate-limited by plan usage. `SANDBOX` supports up to `100` created or billable finished cases per UTC calendar month. `PAYG` also supports `100`, and `BASE_PRO` supports `500`.
+</Info>
+
+<Info>
+  Billable finished cases include successful completions and selected terminal failures where the workflow genuinely ran. Bounce, rejection, and complaint-style delivery failures are not counted as billable finished usage.
 </Info>
 
 ## 2. Create a case
@@ -67,15 +71,15 @@ curl -X POST "$OFFLOAD_BASE_URL/cases" \
       "Email only",
       "Do not mention legal action"
     ],
-    "resultSchema": {
-      "type": "object",
-      "properties": {
-        "signedW9Received": { "type": "boolean" },
-        "taxId": { "type": "string" },
-        "documentUrl": { "type": "string" }
+      "resultSchema": {
+        "type": "object",
+        "properties": {
+          "signedW9Received": { "type": "boolean" },
+          "taxId": { "type": "string" },
+          "receivedAt": { "type": "string" }
+        },
+        "required": ["signedW9Received"]
       },
-      "required": ["signedW9Received"]
-    },
     "clientWebhookUrl": "https://your-app.example/webhooks/offload"
   }'
 ```
@@ -114,11 +118,22 @@ Example `case.completed` payload:
     "status": "COMPLETED",
     "channel": "EMAIL",
     "attemptCount": 2,
+    "attachments": [
+      {
+        "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
+        "name": "vendor-w9.pdf",
+        "size": 904860,
+        "type": "application/pdf",
+        "messageId": "<message-id@example.com>",
+        "inboxId": "dev-test@agentmail.to",
+        "receivedAt": 1774131900000
+      }
+    ],
     "resultStatus": "goal_achieved",
     "result": {
       "signedW9Received": true,
       "taxId": "12-3456789",
-      "documentUrl": "https://files.example.com/w9.pdf"
+      "receivedAt": "2026-03-21T15:42:00Z"
     }
   }
 }
@@ -141,6 +156,7 @@ Example:
     "status": "INPUT_NEEDED",
     "channel": "EMAIL",
     "attemptCount": 1,
+    "attachments": [],
     "inputRequest": "The vendor asked whether they can send the W-9 next Monday. Should I accept that timeline?",
     "inputRequestId": "input-request-123",
     "inputRequestStatus": "PENDING",
@@ -186,7 +202,7 @@ curl -H "x-api-key: $OFFLOAD_API_KEY" \
 ```
 
 <Info>
-  `GET /cases/{id}` returns the current case state and result data, but the active `inputRequest` details are currently only included in webhook events.
+  `GET /cases/{id}` returns the current case state, any active `inputRequest`, and the top-level `attachments` array. Use `GET /cases/{id}/attachments/{attachmentId}` when you need a fresh file link.
 </Info>
 
 ## Next steps
@@ -194,3 +210,4 @@ curl -H "x-api-key: $OFFLOAD_API_KEY" \
 - Read [Case lifecycle](/concepts/lifecycle) to understand status transitions.
 - Read [Result schema](/guides/result-schema) to improve the shape of returned JSON.
 - Read [Webhook events](/api-reference/webhook-events) for the full payload contract.
+- Use the Offload dashboard to create additional API keys, upgrade plans, or manage billing in Stripe.

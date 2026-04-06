@@ -78,10 +78,13 @@ If you omit them:
 
 Offload currently enforces monthly case caps when you create a case:
 
-- `SANDBOX`: `100` created or finished cases per UTC calendar month
-- `PRODUCTION`: `2500` created or finished cases per UTC calendar month as a soft cap
+- `SANDBOX`: `100` created or billable finished cases per UTC calendar month
+- `PAYG`: `100` created or billable finished cases per UTC calendar month
+- `BASE_PRO`: `500` created or billable finished cases per UTC calendar month
 
 If either counter is already at the limit for the current UTC calendar month, `POST /cases` returns `429`.
+
+Billable finished cases are a filtered subset of terminal outcomes. Successful completions count. Delivery failures such as bounces, complaints, and rejected sends do not count as billable finished usage.
 
 ## Current channel support
 

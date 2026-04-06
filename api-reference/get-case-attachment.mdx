@@ -1,0 +1,64 @@
+---
+title: "Get Case Attachment"
+description: "GET /cases/{id}/attachments/{attachmentId}"
+---
+
+## Endpoint
+
+```http
+GET /cases/{id}/attachments/{attachmentId}
+```
+
+## Auth
+
+```http
+x-api-key: your-api-key
+```
+
+## Purpose
+
+Returns a fresh AgentMail download link for one attachment previously received on the case.
+
+Use the top-level `attachments` array from `GET /cases/{id}` or `case.completed` webhooks to discover valid `attachmentId` values first.
+
+## Path parameters
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The case ID returned by `POST /cases`. |
+| `attachmentId` | string | Yes | The attachment ID from the case `attachments` array. |
+
+## Example response
+
+```json
+{
+  "ok": true,
+  "data": {
+    "attachmentId": "63016fee-124b-46d8-a3e5-616f187a6c41",
+    "name": "vendor-w9.pdf",
+    "size": 904860,
+    "type": "application/pdf",
+    "messageId": "<message-id@example.com>",
+    "inboxId": "dev-test@agentmail.to",
+    "receivedAt": 1774131900000,
+    "downloadUrl": "https://cdn.agentmail.to/attachments/63016fee-124b-46d8-a3e5-616f187a6c41?...",
+    "expiresAt": "2026-03-21T16:42:00.000Z"
+  }
+}
+```
+
+## Notes
+
+- `downloadUrl` is temporary and may expire quickly.
+- Request a new link when you actually need to fetch the file.
+- Offload does not inspect attachment contents in this version.
+
+## Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `400` | `INVALID_REQUEST` | Missing case ID or attachment ID |
+| `401` | `UNAUTHORIZED` | Missing or invalid API key |
+| `403` | `FORBIDDEN` | The case belongs to another client |
+| `404` | `CASE_NOT_FOUND` | No case exists for that ID |
+| `404` | `ATTACHMENT_NOT_FOUND` | The case does not have that attachment |

@@ -153,6 +153,84 @@
         }
       }
     },
+    "/cases/{id}/attachments/{attachmentId}": {
+      "get": {
+        "summary": "Get case attachment",
+        "description": "Returns a fresh expiring download URL for an attachment previously received on the case.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Case ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "description": "Attachment ID from the case attachments array",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fresh attachment download link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCaseAttachmentApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Case or attachment not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{id}/input": {
       "post": {
         "summary": "Provide case input",
@@ -421,6 +499,40 @@
           }
         }
       },
+      "CaseAttachment": {
+        "type": "object",
+        "required": ["attachmentId", "size", "messageId", "inboxId", "receivedAt"],
+        "properties": {
+          "attachmentId": {
+            "type": "string",
+            "description": "Stable attachment ID returned by AgentMail."
+          },
+          "name": {
+            "type": "string",
+            "description": "Original filename when available."
+          },
+          "size": {
+            "type": "integer",
+            "description": "Attachment size in bytes."
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME content type when available."
+          },
+          "messageId": {
+            "type": "string",
+            "description": "AgentMail message ID that carried the attachment."
+          },
+          "inboxId": {
+            "type": "string",
+            "description": "AgentMail inbox used to fetch a fresh download URL."
+          },
+          "receivedAt": {
+            "type": "integer",
+            "description": "Unix timestamp in milliseconds for when Offload saw the attachment."
+          }
+        }
+      },
       "GetCaseResponseData": {
         "type": "object",
         "required": [
@@ -432,6 +544,7 @@
           "maxAttempts",
           "channel",
           "counterparty",
+          "attachments",
           "goal",
           "senderPersona",
           "inputRequest"
@@ -468,6 +581,13 @@
           },
           "counterparty": {
             "$ref": "#/components/schemas/Counterparty"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseAttachment"
+            },
+            "description": "Inbound attachments seen on the case. Use the attachment endpoint to mint fresh download URLs."
           },
           "resultStatus": {
             "type": "string"
@@ -521,6 +641,42 @@
           }
         }
       },
+      "GetCaseAttachmentResponseData": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CaseAttachment"
+          },
+          {
+            "type": "object",
+            "required": ["downloadUrl", "expiresAt"],
+            "properties": {
+              "downloadUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Fresh expiring AgentMail download URL."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the download URL expires."
+              }
+            }
+          }
+        ]
+      },
+      "GetCaseAttachmentApiResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GetCaseAttachmentResponseData"
+          }
+        }
+      },
       "ProvideCaseInputRequest": {
         "type": "object",
         "required": ["inputRequestId", "providedContext"],
@@ -564,7 +720,7 @@
       },
       "ClientWebhookEventData": {
         "type": "object",
-        "required": ["caseId", "status", "channel", "attemptCount"],
+        "required": ["caseId", "status", "channel", "attemptCount", "attachments"],
         "properties": {
           "caseId": {
             "type": "string"
@@ -582,6 +738,13 @@
           },
           "attemptCount": {
             "type": "integer"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseAttachment"
+            },
+            "description": "Inbound attachments seen on the case."
           },
           "result": {
             "type": "object",
